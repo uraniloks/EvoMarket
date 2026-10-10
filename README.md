@@ -4,6 +4,18 @@
 
 > Unofficial community project. EvoMarket is not affiliated with or endorsed by DiamondWorld or EvoPlus.
 
+## Downloads and Updates
+
+The recommended place to download EvoMarket releases is [Modrinth](https://modrinth.com/mod/evomarket).
+
+You can also find source code, release notes, and downloadable release files on [GitHub Releases](https://github.com/vanyatash4r/EvoMarket/releases).
+
+- **Download the mod:** [Modrinth](https://modrinth.com/mod/evomarket)
+- **GitHub releases:** [Releases](https://github.com/vanyatash4r/EvoMarket/releases)
+- **Report a bug or suggest a feature:** [GitHub Issues](https://github.com/vanyatash4r/EvoMarket/issues)
+
+Check the release notes before updating and use a JAR built for your Minecraft version.
+
 ## Features
 
 - Detects trade messages such as `куплю`, `скупаю`, `продам`, and `продаю`.
