@@ -319,6 +319,50 @@ public final class MarketParserSelfTest {
         MarketOffer kspExtra = MarketParser.parse("player [NexCore] [155]: Продам КСП за лк", "tester", Instant.EPOCH);
         check(kspExtra != null && kspExtra.categories().contains("КСП") && !kspExtra.categories().contains("Ксп за"), "KSP with trailing payment marker stays canonical");
 
+        // Regression fixes from the latest real-chat screenshots.
+        MarketOffer numberedHellExperience = MarketParser.parse("player [NexCore] [155]: Продам 3кк ад рыбы", "tester", Instant.EPOCH);
+        check(numberedHellExperience != null && numberedHellExperience.displayItem().equals("Адский опыт"),
+                "leading quantity must not break hell experience classification: " + (numberedHellExperience == null ? null : numberedHellExperience.displayItem()));
+        check(numberedHellExperience.categories().contains("Адский опыт"), "numbered hell experience category");
+
+        MarketOffer endExperience = MarketParser.parse("player [NexCore] [155]: Продам энд опыт за лк", "tester", Instant.EPOCH);
+        MarketOffer endFish = MarketParser.parse("player [NexCore] [155]: Продам энд рыбу за лк", "tester", Instant.EPOCH);
+        check(endExperience != null && endFish != null, "both end-experience variants parse");
+        check(endExperience.displayItem().equals("Энд опыт") && endFish.displayItem().equals("Энд опыт"),
+                "end experience and end fish use the same display category");
+        check(endFish.categories().contains("Энд опыт"), "end fish maps to end experience category");
+
+        MarketOffer numberedLlb = MarketParser.parse("player [NexCore] [155]: Продам 3ллб за лк", "tester", Instant.EPOCH);
+        check(numberedLlb != null && numberedLlb.displayItem().equals("ЛЛБ"),
+                "leading quantity and lowercase should canonicalize LLB: " + (numberedLlb == null ? null : numberedLlb.displayItem()));
+        check(numberedLlb.categories().contains("ЛЛБ"), "numbered LLB remains in canonical LLB category");
+        MarketOffer separateLlbRakr = MarketParser.parse("player [NexCore] [155]: Продам ЛЛБ РАКР за лк", "tester", Instant.EPOCH);
+        check(separateLlbRakr != null && separateLlbRakr.categories().containsAll(List.of("ЛЛБ", "РАКР")),
+                "LLB and RAKR must be classified as separate item categories: " + (separateLlbRakr == null ? null : separateLlbRakr.categories()));
+
+        MarketOffer flasksPunctuated = MarketParser.parse("player [NexCore] [155]: Продам колбы !", "tester", Instant.EPOCH);
+        check(flasksPunctuated != null && flasksPunctuated.displayItem().equals("Колбы"),
+                "flasks punctuation normalized: " + (flasksPunctuated == null ? null : flasksPunctuated.displayItem()));
+
+        MarketOffer wardenSkin = MarketParser.parse("player [NexCore] [155]: Продам скин варена за лк", "tester", Instant.EPOCH);
+        MarketOffer comets = MarketParser.parse("player [NexCore] [155]: Продам кометы за лк", "tester", Instant.EPOCH);
+        check(wardenSkin != null && wardenSkin.categories().contains("Косметика"), "warden skin maps to cosmetics");
+        check(comets != null && comets.categories().contains("Косметика"), "comets map to cosmetics");
+
+        MarketOffer lotsOfCurrency = MarketParser.parse("player [NexCore] [155]: Покупаю ОЧЕНЬ много валки по курсу 1к500м спамьте в лс мне", "tester", Instant.EPOCH);
+        check(lotsOfCurrency != null && lotsOfCurrency.categories().contains("Игровая валюта"),
+                "large currency request should be currency, not a custom Очень много category: " + (lotsOfCurrency == null ? null : lotsOfCurrency.categories()));
+        check(!lotsOfCurrency.categories().contains("Очень много"), "bulk currency does not create custom category");
+
+        check(MarketParser.parseAll("player [NexCore] [155]: Продает кто за ЛК много?", "tester", Instant.EPOCH).isEmpty(),
+                "question asking who wants many LK must not create a category");
+        check(MarketParser.parseAll("player [NexCore] [155]: Продам фото своих ножек за 1000лк", "tester", Instant.EPOCH).isEmpty(),
+                "joke about photos of feet must be ignored");
+        check(MarketParser.parseAll("player [NexCore] [155]: Продам посох молний за 10в", "tester", Instant.EPOCH).isEmpty(),
+                "non-tradable staff item must be ignored");
+        check(MarketParser.parseAll("player [NexCore] [155]: так посох молний нельзя же продать и в целом все посохи", "tester", Instant.EPOCH).isEmpty(),
+                "joke about untradable staffs must be ignored");
+
         System.out.println("MarketParserSelfTest: all checks passed");
     }
 

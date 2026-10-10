@@ -18,7 +18,7 @@ public final class MarketCategories {
             "Игровая валюта",
             "ЗКСП", "КСП", "ЗАКР", "РАКР", "ЗЭКР", "РЭКР", "ЗКР", "РКР", "АКР", "ЭКР", "КР", "Кейс DP", "АРКР", "АДКР",
             "АСЛМ", "ЭСЛМ", "СЛМ", "ЛЛБ", "РЛБ", "ЛБ", "ЗО", "РО", "Души", "Кейсы", "Косметика", "Питомцы",
-            "Лег апгрейд", "Опыт", "Адский опыт", "Доски", "Дерево", "Колбы", "Руны", "АСПЛ", "Орешки", "Пепел", "Незер. ядра", "Клубки паутины", "Другое"
+            "Лег апгрейд", "Опыт", "Адский опыт", "Энд опыт", "Доски", "Дерево", "Колбы", "Руны", "АСПЛ", "Орешки", "Пепел", "Незер. ядра", "Клубки паутины", "Другое"
     );
 
     private static final Pattern CURRENCY_PREFIX = Pattern.compile(
@@ -30,6 +30,10 @@ public final class MarketCategories {
     );
     private static final Pattern CURRENCY_WORD_ALIAS = Pattern.compile(
             "(?iu)^(?:валк\\p{L}*|валют\\p{L}*)$"
+    );
+    // Natural chat phrases like "очень много валки по курсу 1к500м" are currency listings.
+    private static final Pattern CURRENCY_BULK_ALIAS = Pattern.compile(
+            "(?iu)^\\s*(?:(?:очень|реально|крайне)\\s+)?много\\s+валк\\p{L}*(?:\\s|$).*$"
     );
     private static final Pattern FILLER_ITEM = Pattern.compile(
             "(?iu)^[\\s\\p{Punct}]*(?:если\\s+(?:ч[её]|что)|пишите?\\s+(?:в\\s+)?(?:лс|личку)|писать\\s+(?:в\\s+)?(?:лс|личку)|(?:в\\s+)?(?:лс|личку)|больше\\s*[-—]?\\s*больше)[\\s\\p{Punct}]*$"
@@ -118,7 +122,7 @@ public final class MarketCategories {
     // These are item names used as cosmetic listings on this server, even if the seller
     // doesn't literally write the word "косметика".
     private static final Pattern COSMETIC_MARKERS = Pattern.compile(
-            "(?iu)(?:косметик\\p{L}*|демоническ\\p{L}*\\s+крыл\\p{L}*|(?<![\\p{L}\\p{N}])крыл\\p{L}*(?![\\p{L}\\p{N}])|(?<![\\p{L}\\p{N}])улей(?![\\p{L}\\p{N}])|(?<![\\p{L}\\p{N}])гроб(?![\\p{L}\\p{N}])|монет\\p{L}*|катан\\p{L}*)"
+            "(?iu)(?:косметик\\p{L}*|демоническ\\p{L}*\\s+крыл\\p{L}*|(?<![\\p{L}\\p{N}])крыл\\p{L}*(?![\\p{L}\\p{N}])|(?<![\\p{L}\\p{N}])улей(?![\\p{L}\\p{N}])|(?<![\\p{L}\\p{N}])гроб(?![\\p{L}\\p{N}])|монет\\p{L}*|катан\\p{L}*|комет\\p{L}*|скин\\s+(?:варден|варен)\\p{L}*)"
     );
     // Experience shorthand in this server: "к обыч", "к опыта", and "опыт 1-11 левл пета"
     // are all the regular experience category, while "кк ад", "ад рыбу" and "адский опыт"
@@ -129,20 +133,24 @@ public final class MarketCategories {
     private static final Pattern HELL_EXPERIENCE_ITEM = Pattern.compile(
             "(?iu)^\\s*(?:кк\\s+ад(?:ск\\p{L}*)?(?:\\s+рыб\\p{L}*)?|(?:ад|адск\\p{L}*)\\s+(?:рыб\\p{L}*|опыт\\p{L}*))"
     );
+    private static final Pattern ENDER_EXPERIENCE_ITEM = Pattern.compile(
+            "(?iu)^\\s*(?:(?:энд|эндер)\\s+(?:опыт\\p{L}*|рыб\\p{L}*)|(?:опыт\\p{L}*|рыб\\p{L}*)\\s+(?:энд|эндер))"
+    );
     private static final Pattern FISHING_TREE = Pattern.compile(
             "(?iu)(?<![\\p{L}\\p{N}])дерев\\p{L}*\\s+(?:с|со)\\s+рыбалк\\p{L}*"
     );
     private static final Pattern TREE_ITEM = Pattern.compile("(?iu)^\\s*дерев\\p{L}*(?:\\s+(?:с|со)\\s+рыбалк\\p{L}*)?");
-    private static final Pattern FLASKS_ITEM = Pattern.compile("(?iu)^\\s*колб\\p{L}*[.!?,;:]*\\s*$");
+    private static final Pattern FLASKS_ITEM = Pattern.compile("(?iu)^\\s*колб\\p{L}*\\s*[.!?,;:]*\\s*$");
 
     private MarketCategories() {}
 
     public static String displayItem(String item, String rawText) {
-        String value = item == null ? "" : item.trim();
+        String value = normalizeForMatching(item);
         if (isCurrencyListing(value, rawText)) return "Игровая валюта";
         if (isCosmeticItem(value)) return "Косметика";
         if (AXOLOTL.matcher(value).find()) return "Аксолотль";
         if (HELL_EXPERIENCE_ITEM.matcher(value).find()) return "Адский опыт";
+        if (ENDER_EXPERIENCE_ITEM.matcher(value).find()) return "Энд опыт";
         if (EXPERIENCE_ITEM.matcher(value).find()) return "Опыт";
         if (FISHING_TREE.matcher(value).find() || TREE_ITEM.matcher(value).matches()) return "Дерево";
         if (FLASKS_ITEM.matcher(value).matches()) return "Колбы";
@@ -165,7 +173,9 @@ public final class MarketCategories {
     public static List<String> categoriesFor(String item, String rawText) {
         String itemText = item == null ? "" : item.trim();
         if (isFillerItem(itemText)) return List.of();
-        String source = !itemText.isBlank() && !isUnknown(itemText) ? itemText : tradeClause(rawText);
+        String normalizedItem = normalizeForMatching(itemText);
+        String source = !normalizedItem.isBlank() && !isUnknown(normalizedItem) ? normalizedItem : tradeClause(rawText);
+        source = normalizeForMatching(source);
         String lower = source.toLowerCase(Locale.ROOT);
         Set<String> found = new LinkedHashSet<>();
 
@@ -208,10 +218,11 @@ public final class MarketCategories {
 
         // Payment type never determines the traded item: currency sold for LK is still
         // game currency, whereas an item sold for LK remains that item's category.
-        if (isCurrencyListing(itemText, rawText)) found.add("Игровая валюта");
+        if (isCurrencyListing(normalizedItem, rawText)) found.add("Игровая валюта");
         if (isCosmeticItem(source)) found.add("Косметика");
         if (AXOLOTL.matcher(lower).find()) found.add("Питомцы");
         if (HELL_EXPERIENCE_ITEM.matcher(source).find()) found.add("Адский опыт");
+        else if (ENDER_EXPERIENCE_ITEM.matcher(source).find()) found.add("Энд опыт");
         else if (EXPERIENCE_ITEM.matcher(source).find()) found.add("Опыт");
         if (LEG_UPGRADE.matcher(lower).find()) found.add("Лег апгрейд");
         if (BOARDS.matcher(lower).find()) found.add("Доски");
@@ -324,20 +335,23 @@ public final class MarketCategories {
         if (item == null || item.isBlank()) return false;
         String value = item.trim();
         if (isUnknown(value)) return false;
-        return CURRENCY_PREFIX.matcher(value).find()
-                || CURRENCY_ALIAS.matcher(value).matches()
-                || CURRENCY_WORD_ALIAS.matcher(value).matches()
-                || INGAME_CURRENCY.matcher(value).find()
+        String normalized = normalizeForMatching(value);
+        return CURRENCY_PREFIX.matcher(normalized).find()
+                || CURRENCY_ALIAS.matcher(normalized).matches()
+                || CURRENCY_WORD_ALIAS.matcher(normalized).matches()
+                || CURRENCY_BULK_ALIAS.matcher(normalized).matches()
+                || INGAME_CURRENCY.matcher(normalized).find()
                 || value.matches("(?iu)^игровые\\s+деньги(?:\\b.*)?$")
                 || value.matches("(?iu)^деньги(?:\\s+(?:за|по|курс|\\d|в лс|в личку).*)?$");
     }
 
     private static boolean isCurrencyOffer(String rawText) {
         if (rawText == null || rawText.isBlank()) return false;
-        String clause = tradeClause(rawText).trim();
+        String clause = normalizeForMatching(tradeClause(rawText).trim());
         if (CURRENCY_PREFIX.matcher(clause).find()
                 || CURRENCY_ALIAS.matcher(clause).matches()
                 || CURRENCY_WORD_ALIAS.matcher(clause).matches()
+                || CURRENCY_BULK_ALIAS.matcher(clause).matches()
                 || INGAME_CURRENCY.matcher(clause).find()
                 || COMPACT_CURRENCY_RATE.matcher(clause).find()
                 || COMPACT_LK_CURRENCY_RATE.matcher(clause).find()
@@ -383,11 +397,30 @@ public final class MarketCategories {
         if (BAT_TREASURE_FULL.matcher(lower).find() || SLM_CODE.matcher(lower).find()) return "СЛМ";
         if (isCosmeticItem(lower)) return "Косметика";
         if (HELL_EXPERIENCE_ITEM.matcher(lower).find()) return "Адский опыт";
+        if (ENDER_EXPERIENCE_ITEM.matcher(lower).find()) return "Энд опыт";
         if (EXPERIENCE_ITEM.matcher(lower).find()) return "Опыт";
         if (FISHING_TREE.matcher(lower).find() || TREE_ITEM.matcher(lower).matches()) return "Дерево";
         if (FLASKS_ITEM.matcher(lower).matches()) return "Колбы";
         if (lower.matches("(?iu)^кейс\\p{L}*$")) return "Кейсы";
         return null;
+    }
+
+    /** Normalize count prefixes and decorative punctuation before classifying an item. */
+    private static String normalizeForMatching(String input) {
+        if (input == null) return "";
+        String value = input.trim().replace('ё', 'е').replace('Ё', 'Е');
+        // Amounts are quantities, not part of category names: 3ЛЛБ -> ЛЛБ, 3КК ад рыбы -> КК ад рыбы.
+        value = value.replaceFirst("(?iu)^\\s*\\d+(?:[.,]\\d+)?\\s*", "");
+        value = value.replaceAll("(?iu)\\s+(?:подробност\\p{L}*|если\\s+ч[ее]|больше\\s*[-—]?\\s*больше)\\s*$", "");
+        value = value.replaceAll("[\\s.!?,;:()\\[\\]{}]+$", "");
+        return value.replaceAll("\\s+", " ").trim();
+    }
+
+    /** These items are not tradeable on the target server and should never appear as offers. */
+    public static boolean isNonTradableItem(String item) {
+        if (item == null) return false;
+        return Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])посох\\p{L}*(?![\\p{L}\\p{N}])")
+                .matcher(item).find();
     }
 
     private static boolean isUnknown(String value) {
@@ -399,7 +432,8 @@ public final class MarketCategories {
         if (item == null) return false;
         String value = item.trim();
         return FILLER_ITEM.matcher(value).matches()
-                || value.matches("(?iu)^(?:подробност\\p{L}*|если\\s+ч[её]|больше\\s*[-—]?\\s*больше)$");
+                || value.matches("(?iu)^(?:подробност\\p{L}*|если\\s+ч[её]|больше\\s*[-—]?\\s*больше)$")
+                || value.matches("(?iu)^кто\\s+(?:за|по)\\s+(?:лк|личн\\p{L}*\\s+кабинет\\p{L}*)\\s+много[.!?]*$");
     }
 
     private static boolean hasToken(String text, String token) {

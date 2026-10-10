@@ -1,62 +1,68 @@
-# EvoMarket
+# EvoMarket 0.1.14
 
-**EvoMarket** is a client-side market tracker for the DiamondWorld PrisonEvo chat, integrated as an EvoPlus addon. It detects buy/sell messages visible to the Minecraft client and organizes offers into searchable categories.
+**Author:** uraniloks
 
-> Unofficial community project. EvoMarket is not affiliated with or endorsed by DiamondWorld or EvoPlus.
+## Сборка и установка на Windows
 
-## Features
+1. Установи **JDK 25**: https://adoptium.net/temurin/releases/?version=25 (Windows x64, MSI).
+2. Распакуй архив в обычную папку.
+3. Запусти `BUILD.bat`. При первой сборке скрипт скачает Gradle и зависимости, поэтому нужен интернет.
+4. Дождись `BUILD SUCCESSFUL`.
+5. Скопируй `build\libs\evomarket-0.1.14.jar` в папку `mods` того же профиля Minecraft 26.2, где стоят EvoPlus и Fabric API. Удали прежние версии EvoMarket из `mods`.
+6. Запусти Minecraft. В окне аддонов EvoPlus появится EvoMarket; окно открывается сочетанием `Ctrl+M`.
 
-- Detects trade messages such as `куплю`, `скупаю`, `продам`, and `продаю`.
-- Separates buying and selling offers.
-- Categorizes common PrisonEvo items, including rune cases, pet cases, Bat Treasures, nuts, lucky blocks, experience, cosmetics, and currency.
-- Recognizes common abbreviations and spelling variations used in trade chat.
-- Distinguishes in-game currency from LC (personal account currency) payment mentions.
-- Parses common currency notation and compact exchange-rate formats.
-- Preserves original chat text so offers can be interpreted in context.
-- Stores a local offer history; it does not automatically buy or sell anything.
+Архив содержит исходники, а не готовый JAR. JAR создаётся командой `BUILD.bat` на твоём компьютере.
 
-## Compatibility
+## Иконка
 
-- Minecraft Java Edition **26.2**
-- **Fabric**
-- **Java 25**
-- **EvoPlus** addon API
-- Fabric API
+- В список аддонов EvoPlus добавлена собственная пиксельная иконка из ресурса `assets/evomarket/icon.png`.
 
-EvoPlus and Fabric API are required at runtime.
+## Возможности
 
-## Build on Windows
+- Канонизированы категории `АРКРы/АКРы`, `Кров` → `КР`, `доски с рыбалки` → `Доски` и варианты `лег апгрейда` → `Лег апгрейд`.
+- Валютные объявления с суммами в начале (`10t, по 3t за 299 лк`), словом `оптом` или жаргонным вариантом `валку к` распознаются как **Игровая валюта**. `валку к` не создаёт отдельную категорию: ЛК определяется отдельно как способ расчёта. Сумма и курс валюты не должны превращаться в случайную категорию вроде «Если че».
+- Названия косметики вроде демонических крыльев, улья, гроба и монет объединяются в **Косметика**. Полный текст объявления показывается только при открытой категории «Косметика»; во всех остальных вкладках остаётся короткая метка.
 
-1. Install JDK 25 or newer: <https://adoptium.net/temurin/releases/?version=25>.
-2. Download or clone this repository.
-3. Run `BUILD.bat`. The script downloads Gradle and project dependencies on first run, so an internet connection is required.
-4. Wait for `BUILD SUCCESSFUL`.
-5. The output JAR is `build/libs/evomarket-0.1.13.jar`.
+- Читает сообщения чата и системные сообщения, доступные клиенту.
+- Распознаёт объявления «куплю», «скупаю», «продам», «продаю» и похожие формулировки.
+- Разделяет несколько явных глаголов покупки/продажи в одном сообщении на отдельные записи.
+- Разбирает суммы: `т`/`T` — триллион; `б`/`B` и `в`/`В` — биллион по словарю сервера.
+- Если в объявлении продаётся просто сумма, например `Продам 10т за 1000 лк`, предмет показывается как **Игровая валюта**.
+- Компактные курсы валют `20бк1` и `1тк10` распознаются отдельно и отображаются именно как курс, а не как обычная фиксированная цена.
+- Вкладки «Все», «Покупают», «Продают» и автоматически накапливаемые категории. Одно объявление со списком предметов может появляться в нескольких категориях.
+- Нормализуются категории: `зо` / золотые орехи / золотые орешки → **ЗО**; `ро` / редкие орехи / редкие орешки → **РО**; `лб` / лаки блоки → **ЛБ**; редкие и легендарные лаки-блоки → **РЛБ** и **ЛЛБ**.
+- `ксп` и «кейсы с питомцами» идут в отдельную категорию **КСП**, не смешиваются с обычными кейсами. Все объявления с косметикой объединяются в **Косметика**.
+- `РКРки` нормализуется в **РКР**. Хвостовые фразы вроде `если че` не сохраняются как предмет; формулировки вроде `кейсы тож продаю` дополнительно распознаются как объявление о кейсах.
+- Полный текст исходного объявления показывается в карточках всех категорий, чтобы были видны контекст и реальные формулировки продавца. Для курсов вида `10t, по 3t за 299 лк` карточка отдельно поясняет размер лота и курс за ЛК.
+- ЛК и игровая валюта распознаются как разные способы расчёта: предмет за ЛК не становится категорией «Валюта К», а сокращение «валку к» нормализуется как торговля игровой валютой с оплатой ЛК;
+- Для валютных лотов вида `10t за 1000 лк` и `10t, по 3t за 299 лк` показывается отдельная цена в ЛК;
+- Способ расчёта хранится отдельно от товара: `ЛК`, `Игровая валюта` или оба варианта. Это позволяет различать реальные ЛК и игровую валюту; суффикс «за валюту» у продажи другого товара сам по себе не превращает объявление в валютное. Старые ошибочные записи-филлеры скрываются при загрузке истории.
+- Незнакомые предметы по-прежнему получают собственную категорию по названию.
+- История до 500 предложений сохраняется локально; старые записи из предыдущих версий не удаляются.
+- Есть виджет-сводка, переключатель сканирования и кнопка очистки истории в настройках EvoPlus.
+- Аддон ничего не покупает и не продаёт автоматически — он анализирует только сообщения, которые получил клиент.
 
-This repository contains source code, not a prebuilt mod JAR.
+- Добавлены отдельные категории кейсов: `КР`, `РКР`, `Кейс DP`, `КСП`, `ЗКСП`, `АКР`, `РАКР`, `ЭКР`, `РЭКР`, `ЗКР`, `ЗАКР`, `ЗЭКР`, `СЛМ`, `АСЛМ`, `ЭСЛМ`. Полные названия и сокращения распознаются как один и тот же тип; уточняющие варианты не падают в общую категорию «Кейсы» или «Руны».
 
-## Install
+## Особенности распознавания
 
-Copy `evomarket-0.1.13.jar` into the `mods` folder of your Minecraft 26.2 Fabric instance, alongside EvoPlus and Fabric API. Remove older EvoMarket JARs before installing a newer version. The addon window is opened with `Ctrl+M`.
+Торговые сообщения на сервере пишутся свободным текстом, поэтому распознавание названия или цены может быть неточным. Словарь сокращений расширяется по реальным примерам из чата; отдельные необычные объявления всё ещё могут требовать дополнительного правила. Старые сообщения до включения сканера восстановить нельзя.
 
-## Known limitations
+## Конфигурация проекта
 
-Trade chat uses free-form text, server-specific abbreviations, and nonstandard price notation. Some offers may be misclassified or have an unknown price. Please include the original chat message when reporting a parsing issue. Messages received before the scanner starts cannot be recovered.
+Настроено под Minecraft **26.2**, Fabric API **0.161.0+26.2**, Fabric Loader **0.19.3**, Java **25**, EvoPlus API **1.8.0**. EvoPlus API подключается как `compileOnly` и не упаковывается в JAR аддона.
 
-## Reporting bugs
+## Publishing on Modrinth
 
-When reporting an issue, include:
+This source package is for building EvoMarket 0.1.14. Run `BUILD.bat` on Windows with JDK 25 installed, then upload only `build/libs/evomarket-0.1.14.jar` to Modrinth. Do not upload the source ZIP or `-sources.jar` as the mod file. The Fabric metadata license is set to `All-Rights-Reserved` to match the intended Modrinth project setting.
 
-- EvoMarket version
-- Minecraft, Fabric Loader, Fabric API, and EvoPlus versions
-- The original chat message (remove any private information)
-- A screenshot or relevant log excerpt
-- What category/result was expected
+## 0.1.14
 
-## AI assistance disclosure
-
-AI tools were used to assist with portions of the source code, project documentation, and parsing tests. The project is still under active development, and its results should be tested against real DiamondWorld chat messages.
-
-## License and usage
-
-Copyright (c) 2026 uraniloks. All rights reserved. No permission is granted to copy, modify, redistribute, or publish modified versions of this source without prior written permission from the author.
+- Normalized item names before classification so leading quantities and trailing punctuation do not create duplicate categories.
+- Mapped `3кк ад рыбы` and related variants to `Адский опыт`.
+- Mapped `энд опыт` and `энд рыбу` to one `Энд опыт` category.
+- Merged lowercase and quantity variants of `ЛЛБ`, `КР`, `КСП`, and `ЛБ` into canonical categories.
+- Mapped `скин варден` and `кометы` to `Косметика`; normalized `колбы!` to `Колбы`.
+- Classified `очень много валки по курсу ...` as `Игровая валюта`, not a custom `Очень много` category.
+- Filtered jokes and non-trade messages, including untradeable staff items, photos of feet, and `кто за ЛК много`.
+- Added regression checks for the reported chat examples.

@@ -52,7 +52,12 @@ public final class MarketParser {
                     + "|можно\\s+отойти.{0,80}вернут"
                     + "|все?\\s+прекрасно\\s+видно"
                     + "|продать\\s+что[- ]?то\\s+или\\s+купить"
-                    + "|купить\\s+что[- ]?то\\s+или\\s+продать)"
+                    + "|купить\\s+что[- ]?то\\s+или\\s+продать"
+                    + "|фото\\s+своих\\s+ножек"
+                    + "|фотк\\p{L}*\\s+своих\\s+ножек"
+                    + "|кто\\s+(?:за|по)\\s+(?:лк|личн\\p{L}*\\s+кабинет\\p{L}*)\\s+много"
+                    + "|в\\s+целом\\s+все?\\s+посох\\p{L}*"
+                    + "|посох\\p{L}*.{0,80}\\bнельзя\\b.{0,50}(?:купить|продать))"
     );
     private static final Pattern GENERIC_ITEM = Pattern.compile(
             "(?iu)^(?:что[- ]?то(?:\\s+или)?|что[- ]?либо|что[- ]?нибудь|всё|все|товар|предмет)(?:\\s+.*)?$"
@@ -127,7 +132,9 @@ public final class MarketParser {
                 if (currencyLot) item = "Игровая валюта";
                 else continue;
             }
-            if (GENERIC_ITEM.matcher(item.trim()).matches() || isFillerOnly(item)) continue;
+            if (GENERIC_ITEM.matcher(item.trim()).matches() || isFillerOnly(item)
+                    || MarketCategories.isFillerItem(item)
+                    || MarketCategories.isNonTradableItem(item)) continue;
             String paymentMethod = MarketCategories.paymentMethod(item, segment);
             offers.add(new MarketOffer(safeTimestamp, intent.action, item,
                     parsedPrice == null ? null : parsedPrice.amount, seller, text, paymentMethod));
@@ -139,7 +146,8 @@ public final class MarketParser {
         while (reversed.find()) {
             String item = cleanItem(reversed.group("item")
                     .replaceAll("(?iu)\\s+(?:тож(?:е)?|также)\\s*$", ""));
-            if (item.isBlank() || isFillerOnly(item)) continue;
+            if (item.isBlank() || isFillerOnly(item) || MarketCategories.isFillerItem(item)
+                    || MarketCategories.isNonTradableItem(item)) continue;
             TradeAction action = reversed.group("buy") != null ? TradeAction.BUY : TradeAction.SELL;
             String finalItem = item;
             boolean duplicate = offers.stream().anyMatch(existing -> existing.action() == action

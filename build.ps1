@@ -1,4 +1,4 @@
-﻿# ASCII-only script for compatibility with Windows PowerShell 5.1.
+# ASCII-only script for compatibility with Windows PowerShell 5.1.
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 Set-Location $PSScriptRoot
@@ -46,7 +46,7 @@ if ($gradleExitCode -ne 0) {
     exit $gradleExitCode
 }
 
-$jarPath = Join-Path $PSScriptRoot 'build\libs\evomarket-0.1.13.jar'
+$jarPath = Join-Path $PSScriptRoot 'build\libs\evomarket-0.1.14.jar'
 if (-not (Test-Path $jarPath)) {
     Write-Host '[ERROR] Gradle finished, but the expected JAR was not found.' -ForegroundColor Red
     exit 2
