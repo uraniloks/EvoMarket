@@ -8,11 +8,11 @@
 
 Рекомендуемое место для скачивания версий EvoMarket — [Modrinth](https://modrinth.com/mod/evomarket).
 
-Исходный код, заметки к версиям и файлы релизов также доступны в [GitHub Releases](https://github.com/vanyatash4r/EvoMarket/releases).
+Исходный код, заметки к версиям и файлы релизов также доступны в [GitHub Releases](https://github.com/uraniloks/EvoMarket/releases).
 
 - **Скачать мод:** [Modrinth](https://modrinth.com/mod/evomarket)
-- **Релизы на GitHub:** [Releases](https://github.com/vanyatash4r/EvoMarket/releases)
-- **Сообщить об ошибке или предложить улучшение:** [GitHub Issues](https://github.com/vanyatash4r/EvoMarket/issues)
+- **Релизы на GitHub:** [Releases](https://github.com/uraniloks/EvoMarket/releases)
+- **Сообщить об ошибке или предложить улучшение:** [GitHub Issues](https://github.com/uraniloks/EvoMarket/issues)
 
 Перед обновлением читайте описание релиза и скачивайте JAR, совместимый с вашей версией Minecraft.
 
