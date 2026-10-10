@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "evomarket",
+  "version": "${version}",
+  "name": "EvoMarket",
+  "description": "Локальный сканер торгового чата PrisonEvo для EvoPlus.",
+  "authors": [
+    "uraniloks"
+  ],
+  "license": "All-Rights-Reserved",
+  "environment": "client",
+  "entrypoints": {
+    "evo-plus": [
+      "ru.boss.evomarket.evoplus.EvoMarketAddon"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.0",
+    "minecraft": "26.2",
+    "fabric-api": "*",
+    "evo-plus": "*",
+    "java": ">=25"
+  },
+  "icon": "assets/evomarket/icon.png"
+}
