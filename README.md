@@ -1,74 +1,74 @@
 # EvoMarket
 
-**EvoMarket** is a client-side market tracker for the DiamondWorld PrisonEvo chat, integrated as an EvoPlus addon. It detects buy/sell messages visible to the Minecraft client and organizes offers into searchable categories.
+**EvoMarket** — клиентский сканер торгового чата DiamondWorld PrisonEvo, интегрированный как аддон EvoPlus. Он распознаёт видимые клиенту сообщения о покупке и продаже и распределяет предложения по категориям для удобного поиска.
 
-> Unofficial community project. EvoMarket is not affiliated with or endorsed by DiamondWorld or EvoPlus.
+> Неофициальный проект сообщества. EvoMarket не связан с DiamondWorld или EvoPlus и не одобрен их разработчиками.
 
-## Downloads and Updates
+## Скачать и обновить
 
-The recommended place to download EvoMarket releases is [Modrinth](https://modrinth.com/mod/evomarket).
+Рекомендуемое место для скачивания версий EvoMarket — [Modrinth](https://modrinth.com/mod/evomarket).
 
-You can also find source code, release notes, and downloadable release files on [GitHub Releases](https://github.com/vanyatash4r/EvoMarket/releases).
+Исходный код, заметки к версиям и файлы релизов также доступны в [GitHub Releases](https://github.com/vanyatash4r/EvoMarket/releases).
 
-- **Download the mod:** [Modrinth](https://modrinth.com/mod/evomarket)
-- **GitHub releases:** [Releases](https://github.com/vanyatash4r/EvoMarket/releases)
-- **Report a bug or suggest a feature:** [GitHub Issues](https://github.com/vanyatash4r/EvoMarket/issues)
+- **Скачать мод:** [Modrinth](https://modrinth.com/mod/evomarket)
+- **Релизы на GitHub:** [Releases](https://github.com/vanyatash4r/EvoMarket/releases)
+- **Сообщить об ошибке или предложить улучшение:** [GitHub Issues](https://github.com/vanyatash4r/EvoMarket/issues)
 
-Check the release notes before updating and use a JAR built for your Minecraft version.
+Перед обновлением читайте описание релиза и скачивайте JAR, совместимый с вашей версией Minecraft.
 
-## Features
+## Возможности
 
-- Detects trade messages such as `куплю`, `скупаю`, `продам`, and `продаю`.
-- Separates buying and selling offers.
-- Categorizes common PrisonEvo items, including rune cases, pet cases, Bat Treasures, nuts, lucky blocks, experience, cosmetics, and currency.
-- Recognizes common abbreviations and spelling variations used in trade chat.
-- Distinguishes in-game currency from LC (personal account currency) payment mentions.
-- Parses common currency notation and compact exchange-rate formats.
-- Preserves original chat text so offers can be interpreted in context.
-- Stores a local offer history; it does not automatically buy or sell anything.
+- Распознаёт торговые сообщения, например `куплю`, `скупаю`, `продам` и `продаю`.
+- Разделяет предложения о покупке и продаже.
+- Распределяет распространённые товары PrisonEvo по категориям, включая кейсы с рунами и питомцами, сокровища летучей мыши, орехи, лаки-блоки, опыт, косметику и валюту.
+- Распознаёт распространённые сокращения и варианты написания из торгового чата.
+- Различает игровую валюту и упоминания ЛК (валюты личного кабинета) как способа оплаты.
+- Обрабатывает распространённые форматы записи сумм и коротких курсов обмена.
+- Сохраняет исходный текст чата, чтобы предложение можно было рассмотреть в контексте.
+- Хранит локальную историю предложений; мод не покупает и не продаёт предметы автоматически.
 
-## Compatibility
+## Совместимость
 
 - Minecraft Java Edition **26.2**
 - **Fabric**
 - **Java 25**
-- **EvoPlus** addon API
+- API аддонов **EvoPlus**
 - Fabric API
 
-EvoPlus and Fabric API are required at runtime.
+Для работы необходимы EvoPlus и Fabric API.
 
-## Build on Windows
+## Сборка в Windows
 
-1. Install JDK 25 or newer: <https://adoptium.net/temurin/releases/?version=25>.
-2. Download or clone this repository.
-3. Run `BUILD.bat`. The script downloads Gradle and project dependencies on first run, so an internet connection is required.
-4. Wait for `BUILD SUCCESSFUL`.
-5. The output JAR is `build/libs/evomarket-0.1.13.jar`.
+1. Установите JDK 25 или новее: <https://adoptium.net/temurin/releases/?version=25>.
+2. Скачайте или клонируйте этот репозиторий.
+3. Запустите `BUILD.bat`. При первом запуске скрипт скачивает Gradle и зависимости проекта, поэтому потребуется подключение к интернету.
+4. Дождитесь сообщения `BUILD SUCCESSFUL`.
+5. Готовый JAR появится по пути `build/libs/evomarket-0.1.13.jar`.
 
-This repository contains source code, not a prebuilt mod JAR.
+В репозитории находится исходный код, а не готовый JAR-файл мода.
 
-## Install
+## Установка
 
-Copy `evomarket-0.1.13.jar` into the `mods` folder of your Minecraft 26.2 Fabric instance, alongside EvoPlus and Fabric API. Remove older EvoMarket JARs before installing a newer version. The addon window is opened with `Ctrl+M`.
+Скопируйте `evomarket-0.1.13.jar` в папку `mods` вашего экземпляра Minecraft 26.2 с Fabric, где уже установлены EvoPlus и Fabric API. Перед установкой новой версии удалите старые JAR-файлы EvoMarket. Окно аддона открывается сочетанием клавиш `Ctrl+M`.
 
-## Known limitations
+## Известные ограничения
 
-Trade chat uses free-form text, server-specific abbreviations, and nonstandard price notation. Some offers may be misclassified or have an unknown price. Please include the original chat message when reporting a parsing issue. Messages received before the scanner starts cannot be recovered.
+Торговый чат использует свободный текст, серверные сокращения и нестандартную запись цен. Некоторые предложения могут быть распознаны неправильно или отображаться без распознанной цены. При сообщении об ошибке прикладывайте исходный текст сообщения из чата. Сообщения, отправленные до запуска сканера, восстановить нельзя.
 
-## Reporting bugs
+## Сообщить об ошибке
 
-When reporting an issue, include:
+При создании обращения укажите:
 
-- EvoMarket version
-- Minecraft, Fabric Loader, Fabric API, and EvoPlus versions
-- The original chat message (remove any private information)
-- A screenshot or relevant log excerpt
-- What category/result was expected
+- версию EvoMarket;
+- версии Minecraft, Fabric Loader, Fabric API и EvoPlus;
+- исходное сообщение из чата (удалите личную информацию);
+- скриншот или соответствующую часть лога;
+- какой результат или категорию вы ожидали получить.
 
-## AI assistance disclosure
+## Использование ИИ
 
-AI tools were used to assist with portions of the source code, project documentation, and parsing tests. The project is still under active development, and its results should be tested against real DiamondWorld chat messages.
+Инструменты ИИ использовались для помощи при создании части исходного кода, документации проекта и тестов парсинга. Проект продолжает разрабатываться, а его работу необходимо проверять на реальных сообщениях торгового чата DiamondWorld.
 
-## License and usage
+## Лицензия и условия использования
 
-Copyright (c) 2026 uraniloks. All rights reserved. No permission is granted to copy, modify, redistribute, or publish modified versions of this source without prior written permission from the author.
+Copyright (c) 2026 uraniloks. Все права защищены. Без предварительного письменного разрешения автора не предоставляется право копировать, изменять, распространять или публиковать модифицированные версии этого исходного кода.
