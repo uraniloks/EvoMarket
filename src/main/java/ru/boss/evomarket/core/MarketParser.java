@@ -11,7 +11,7 @@ import java.util.regex.Pattern;
 /** Parser for free-form Russian trade messages used in PrisonEvo. */
 public final class MarketParser {
     private static final Pattern INTENT = Pattern.compile(
-            "(?iu)(?<![\\p{L}])(?:(?<buy>куплю|скупаю|скупает|скупают|покупаю|покупает|покупают|приобрету)|"
+            "(?iu)(?<![\\p{L}])(?:(?<buy>ищу|куплю|скупаю|скупает|скупают|покупаю|покупает|покупают|приобрету)|"
                     + "(?<sell>продам|продаю|продаем|продаём|продает|продаёт|продают|продажа|продать))(?![\\p{L}])"
     );
 
@@ -23,7 +23,7 @@ public final class MarketParser {
     // LC (ЛК) is a separate payment currency, not an item/category. Only treat it as
     // the price when the amount is introduced as a price, e.g. "за 299 лк" or "по 50 лк".
     private static final Pattern LK_PRICE = Pattern.compile(
-            "(?iu)(?<![\\p{L}\\p{N}])(?:за|по(?:\\s+цене)?|цена\\s*:?|стоимость\\s*:?|от)\\s*"
+            "(?iu)(?<![\\p{L}\\p{N}])(?:за|по(?:\\s+цене)?|цена\\s*:?|стоимость\\s*:?|от)\\s*(?:пак\\s*)?"
                     + "(\\d+(?:[.,]\\d+)?)\\s*(?:лк|личн\\p{L}*\\s+кабинет\\p{L}*)(?![\\p{L}])"
     );
     private static final Pattern SERVER_NAME = Pattern.compile(
@@ -57,11 +57,14 @@ public final class MarketParser {
                     + "|фотк\\p{L}*\\s+своих\\s+ножек"
                     + "|кто\\s+(?:за|по)\\s+(?:лк|личн\\p{L}*\\s+кабинет\\p{L}*)\\s+много"
                     + "|в\\s+целом\\s+все?\\s+посох\\p{L}*"
-                    + "|посох\\p{L}*.{0,80}\\bнельзя\\b.{0,50}(?:купить|продать))"
+                    + "|посох\\p{L}*.{0,80}\\bнельзя\\b.{0,50}(?:купить|продать)"
+                    + "|(?:продать|купить)\\s+можно[!?]*\\s*$"
+                    + "|(?:дп\\s+)?кейс\\p{L}*\\s+покупает\\s+кто[- ]?то\\s+на\\s+аук\\p{L}*[?!.]*\\s*$)"
     );
     private static final Pattern GENERIC_ITEM = Pattern.compile(
             "(?iu)^(?:что[- ]?то(?:\\s+или)?|что[- ]?либо|что[- ]?нибудь|всё|все|товар|предмет)(?:\\s+.*)?$"
     );
+    private static final Pattern BRACKETED_LEADING_ITEM = Pattern.compile("(?iu)^\\s*\\[([^\\]]{2,100})\\]\\s*$");
     private static final Pattern CURRENCY_AMOUNT_PREFIX = Pattern.compile(
             "(?iu)^\\s*\\d+(?:[.,]\\d+)?\\s*(?:триллион(?:а|ов)?|трлн|т|t|б|b|в)(?![\\p{L}\\p{N}])"
     );
@@ -69,7 +72,7 @@ public final class MarketParser {
             "(?iu)(?<![\\p{L}\\p{N}])(\\d+(?:[.,]\\d+)?)\\s*([тtбbв])\\s*к\\s*(\\d+(?:[.,]\\d+)?)(?![\\p{L}\\p{N}])"
     );
     private static final Pattern FILLER_ONLY = Pattern.compile(
-            "(?iu)^[\\s\\p{Punct}]*(?:если\\s+(?:ч[её]|что)|пишите?\\s+(?:в\\s+)?(?:лс|личку)|писать\\s+(?:в\\s+)?(?:лс|личку)|(?:в\\s+)?(?:лс|личку)|больше\\s*[-—]?\\s*больше)[\\s\\p{Punct}]*$"
+            "(?iu)^[\\s\\p{Punct}]*(?:если\\s+(?:ч[её]|что)|пишите?\\s+(?:в\\s+)?(?:лс|личку)|писать\\s+(?:в\\s+)?(?:лс|личку)|(?:в\\s+)?(?:лс|личку)|больше\\s*[-—]?\\s*больше|или\\s+обменяю)[\\s\\p{Punct}]*$"
     );
     // Sometimes a player writes an item first and puts the verb after it: "кейсы тож продаю".
     // These are recovered as a separate offer instead of treating the trailing "если че" as an item.
@@ -116,10 +119,17 @@ public final class MarketParser {
             PriceResult parsedPrice = findPrice(segment, 0);
             String item;
             boolean currencyLot = startsWithCurrencyAmount(segment);
-            // If a clause begins with a T/B amount, that amount is the game-currency lot,
-            // while a later "за N лк" is the payment price.
+            Matcher bracketedPrefix = i == 0
+                    ? BRACKETED_LEADING_ITEM.matcher(body.substring(0, intent.start()).trim())
+                    : BRACKETED_LEADING_ITEM.matcher("");
+            String prefixItem = bracketedPrefix.matches() ? cleanItem(bracketedPrefix.group(1)) : "";
+            // If a clause begins with a T/B amount (possibly after "фастом" or "за ЛК"),
+            // that amount is the currency lot. Some server formats put the item in brackets
+            // before the verb, e.g. "[Рунический апгрейд] продаю за 10т".
             if (currencyLot) {
                 item = "Игровая валюта";
+            } else if (!prefixItem.isBlank()) {
+                item = prefixItem;
             } else {
                 int itemEnd = parsedPrice == null ? segment.length() : parsedPrice.start;
                 item = cleanItem(segment.substring(0, Math.max(0, itemEnd)));
@@ -233,7 +243,9 @@ public final class MarketParser {
     }
 
     private static boolean startsWithCurrencyAmount(String input) {
-        String value = input == null ? "" : input;
+        String value = input == null ? "" : input.trim();
+        value = value.replaceFirst("(?iu)^(?:(?:фастом|фастиком|fastom|fastikom|оптом)\\s+)+", "");
+        value = value.replaceFirst("(?iu)^за\\s+(?:лк|личн\\p{L}*\\s+кабинет\\p{L}*)\\s+", "");
         Matcher compactLkRate = COMPACT_LK_CURRENCY_RATE.matcher(value);
         return CURRENCY_AMOUNT_PREFIX.matcher(value).find()
                 || CURRENCY_RATE.matcher(value).lookingAt()
@@ -242,10 +254,12 @@ public final class MarketParser {
 
     private static String cleanItem(String input) {
         String value = input.trim();
+        value = value.replaceFirst("(?iu)^\\s*(?:(?:фастом|фастиком|fastom|fastikom|оптом)\\s+)+", "");
+        value = value.replaceFirst("(?iu)^\\s*за\\s+(?:лк|личн\\p{L}*\\s+кабинет\\p{L}*)\\s+", "");
         value = value.replaceAll("(?iu)(?:[,;.!]?\\s*)(?:(?:пишите?|писать)\\s+)?(?:в\\s+)?(?:лс|личку|личные сообщения)\\s*[!.!?]*$", "");
         value = value.replaceAll("(?iu)\\s*/\\s*(?:m|msg|tell|w)\\s+\\S+.*$", "");
         value = value.replaceAll("(?iu)\\s+(?:подробност\\p{L}*|если\\s+ч[её]|больше\\s*[-—]?\\s*больше)\\s*[!.!?]*$", "");
-        value = value.replaceAll("(?iu)\\s+(?:за|по цене|по|цена|от)\\s*$", "");
+        value = value.replaceAll("(?iu)\\s+(?:за\\s+(?:лк|личн\\p{L}*\\s+кабинет\\p{L}*)|за|по цене|по|цена|от)\\s*$", "");
         value = value.replaceAll("(?iu)\\s+(?:за|по цене)\\s+\\S+\\s*$", "");
         value = value.replaceAll("^[\\s:;,.()\\[\\]{}—–-]+", "");
         value = value.replaceAll("[\\s:;,.!?()\\[\\]{}—–-]+$", "");

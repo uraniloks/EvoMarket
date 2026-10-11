@@ -17,8 +17,8 @@ public final class MarketCategories {
     private static final List<String> ORDER = List.of(
             "Игровая валюта",
             "ЗКСП", "КСП", "ЗАКР", "РАКР", "ЗЭКР", "РЭКР", "ЗКР", "РКР", "АКР", "ЭКР", "КР", "Кейс DP", "АРКР", "АДКР",
-            "АСЛМ", "ЭСЛМ", "СЛМ", "ЛЛБ", "РЛБ", "ЛБ", "ЗО", "РО", "Души", "Кейсы", "Косметика", "Питомцы",
-            "Лег апгрейд", "Опыт", "Адский опыт", "Энд опыт", "Доски", "Дерево", "Колбы", "Руны", "АСПЛ", "Орешки", "Пепел", "Незер. ядра", "Клубки паутины", "Другое"
+            "АСЛМ", "ЭСЛМ", "СЛМ", "ЛЛБ", "РЛБ", "ЛБ", "ЗО", "РО", "Мешочки с золотом", "Души", "Кейсы", "Косметика", "Питомцы",
+            "Лег апгрейд", "Опыт", "Адский опыт", "Энд опыт", "Зелья", "Охотки", "Доски", "Дерево", "Колбы", "Руны", "АСПЛ", "Пепел", "Незер. ядра", "Клубки паутины", "Другое"
     );
 
     private static final Pattern CURRENCY_PREFIX = Pattern.compile(
@@ -33,10 +33,10 @@ public final class MarketCategories {
     );
     // Natural chat phrases like "очень много валки по курсу 1к500м" are currency listings.
     private static final Pattern CURRENCY_BULK_ALIAS = Pattern.compile(
-            "(?iu)^\\s*(?:(?:очень|реально|крайне)\\s+)?много\\s+валк\\p{L}*(?:\\s|$).*$"
+            "(?iu)^\\s*(?:(?:очень|реально|крайне)\\s+)?много\\s+(?:валк|валют)\\p{L}*(?:\\s|$).*$"
     );
     private static final Pattern FILLER_ITEM = Pattern.compile(
-            "(?iu)^[\\s\\p{Punct}]*(?:если\\s+(?:ч[её]|что)|пишите?\\s+(?:в\\s+)?(?:лс|личку)|писать\\s+(?:в\\s+)?(?:лс|личку)|(?:в\\s+)?(?:лс|личку)|больше\\s*[-—]?\\s*больше)[\\s\\p{Punct}]*$"
+            "(?iu)^[\\s\\p{Punct}]*(?:если\\s+(?:ч[её]|что)|пишите?\\s+(?:в\\s+)?(?:лс|личку)|писать\\s+(?:в\\s+)?(?:лс|личку)|(?:в\\s+)?(?:лс|личку)|больше\\s*[-—]?\\s*больше|или\\s+обменяю|можно|мешк\\p{L}*\\s+с|мешок\\s+с)[\\s\\p{Punct}]*$"
     );
     private static final Pattern INGAME_CURRENCY = Pattern.compile(
             "(?iu)^(?:внутриигров\\p{L}*(?:\\s+валют\\p{L}*)?|игров\\p{L}*\\s+валют\\p{L}*|курс\\s+валют\\p{L}*)"
@@ -53,7 +53,7 @@ public final class MarketCategories {
             "(?iu)(?<![\\p{L}\\p{N}])\\d+(?:[.,]\\d+)?\\s*(?:триллион(?:а|ов)?|трлн|т|t|б|b|в)(?![\\p{L}])"
     );
     private static final Pattern LK_MARKER = Pattern.compile(
-            "(?iu)(?<![\\p{L}\\p{N}])(?:лк|личн\\p{L}*\\s+кабинет\\p{L}*)(?![\\p{L}\\p{N}])"
+            "(?iu)(?<![\\p{L}])(?:лк|личн\\p{L}*\\s+кабинет\\p{L}*)(?![\\p{L}\\p{N}])"
     );
     private static final Pattern GAME_CURRENCY_PAYMENT_WORD = Pattern.compile(
             "(?iu)(?:\\b(?:за|по|обмен\\s+(?:на|за)|оплата\\s*:?)\\s*(?:игров\\p{L}*\\s+|внутриигров\\p{L}*\\s+)?валют\\p{L}*|(?:/|\\bили\\s+)\\s*(?:игров\\p{L}*\\s+|внутриигров\\p{L}*\\s+)?валют\\p{L}*)"
@@ -122,7 +122,7 @@ public final class MarketCategories {
     // These are item names used as cosmetic listings on this server, even if the seller
     // doesn't literally write the word "косметика".
     private static final Pattern COSMETIC_MARKERS = Pattern.compile(
-            "(?iu)(?:косметик\\p{L}*|демоническ\\p{L}*\\s+крыл\\p{L}*|(?<![\\p{L}\\p{N}])крыл\\p{L}*(?![\\p{L}\\p{N}])|(?<![\\p{L}\\p{N}])улей(?![\\p{L}\\p{N}])|(?<![\\p{L}\\p{N}])гроб(?![\\p{L}\\p{N}])|монет\\p{L}*|катан\\p{L}*|комет\\p{L}*|скин\\s+(?:варден|варен)\\p{L}*)"
+            "(?iu)(?:косметик\\p{L}*|демоническ\\p{L}*\\s+крыл\\p{L}*|(?<![\\p{L}\\p{N}])крыл\\p{L}*(?![\\p{L}\\p{N}])|(?<![\\p{L}\\p{N}])улей(?![\\p{L}\\p{N}])|(?<![\\p{L}\\p{N}])гроб(?![\\p{L}\\p{N}])|монет\\p{L}*|катан\\p{L}*|комет\\p{L}*|скин\\p{L}*(?:\\s+[\\p{L}\\p{N}_-]+)?)"
     );
     // Experience shorthand in this server: "к обыч", "к опыта", and "опыт 1-11 левл пета"
     // are all the regular experience category, while "кк ад", "ад рыбу" and "адский опыт"
@@ -139,8 +139,20 @@ public final class MarketCategories {
     private static final Pattern FISHING_TREE = Pattern.compile(
             "(?iu)(?<![\\p{L}\\p{N}])дерев\\p{L}*\\s+(?:с|со)\\s+рыбалк\\p{L}*"
     );
-    private static final Pattern TREE_ITEM = Pattern.compile("(?iu)^\\s*дерев\\p{L}*(?:\\s+(?:с|со)\\s+рыбалк\\p{L}*)?");
+    private static final Pattern TREE_ITEM = Pattern.compile(
+            "(?iu)^\\s*дерев(?:о|ья|ьев|а|у|ом|ьям|ьями|ьях)(?![\\p{L}])"
+    );
     private static final Pattern FLASKS_ITEM = Pattern.compile("(?iu)^\\s*колб\\p{L}*\\s*[.!?,;:]*\\s*$");
+    private static final Pattern PET_EXPERIENCE_ITEM = Pattern.compile(
+            "(?iu)(?<![\\p{L}\\p{N}])рыб\\p{L}*\\s+для\\s+(?:ада|адск\\p{L}*|энда|эндер\\p{L}*)\\s+пет\\p{L}*(?:\\s+с\\s+\\d+\\s+до\\s+\\d+\\s+л(?:вл|евл)\\p{L}*)?"
+    );
+    private static final Pattern POTION_ITEM = Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])зель\\p{L}*(?![\\p{L}\\p{N}])");
+    private static final Pattern GOLD_BAGS = Pattern.compile(
+            "(?iu)(?<![\\p{L}\\p{N}])(?:мешочк\\p{L}*|мешок\\p{L}*|мешк\\p{L}*)(?:\\s+(?:с\\s+)?золот\\p{L}*)?"
+    );
+    private static final Pattern HELL_BAT_TREASURE_SHORT = Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])адск\\p{L}*\\s+слм(?![\\p{L}\\p{N}])");
+    private static final Pattern RUNE_UPGRADE = Pattern.compile("(?iu)руническ\\p{L}*\\s+апгре[йи]д\\p{L}*");
+    private static final Pattern GENERIC_NUTS = Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])(?:орех\\p{L}*|орешк\\p{L}*)(?![\\p{L}\\p{N}])");
 
     private MarketCategories() {}
 
@@ -149,10 +161,12 @@ public final class MarketCategories {
         if (isCurrencyListing(value, rawText)) return "Игровая валюта";
         if (isCosmeticItem(value)) return "Косметика";
         if (AXOLOTL.matcher(value).find()) return "Аксолотль";
+        if (GOLD_BAGS.matcher(value).find()) return "Мешочки с золотом";
         if (HELL_EXPERIENCE_ITEM.matcher(value).find()) return "Адский опыт";
         if (ENDER_EXPERIENCE_ITEM.matcher(value).find()) return "Энд опыт";
-        if (EXPERIENCE_ITEM.matcher(value).find()) return "Опыт";
-        if (FISHING_TREE.matcher(value).find() || TREE_ITEM.matcher(value).matches()) return "Дерево";
+        if (PET_EXPERIENCE_ITEM.matcher(value).find() || EXPERIENCE_ITEM.matcher(value).find()) return "Опыт";
+        if (POTION_ITEM.matcher(value).find()) return "Зелья";
+        if (FISHING_TREE.matcher(value).find() || TREE_ITEM.matcher(value).find()) return "Дерево";
         if (FLASKS_ITEM.matcher(value).matches()) return "Колбы";
         if (isFillerItem(value)) return UNKNOWN;
         if (value.isBlank() || isUnknown(value)) return UNKNOWN;
@@ -197,6 +211,8 @@ public final class MarketCategories {
         remaining = collectFull(remaining, HELL_BAT_TREASURE_FULL, "АСЛМ", found);
         remaining = collectFull(remaining, ENDER_BAT_TREASURE_FULL, "ЭСЛМ", found);
         remaining = collectFull(remaining, BAT_TREASURE_FULL, "СЛМ", found);
+        remaining = collectFull(remaining, HELL_BAT_TREASURE_SHORT, "АСЛМ", found);
+        remaining = collectFull(remaining, GOLD_BAGS, "Мешочки с золотом", found);
 
         // Exact token matching prevents e.g. РАКР from being mistaken for АКР.
         if (ZKSP_CODE.matcher(lower).find()) found.add("ЗКСП");
@@ -223,10 +239,14 @@ public final class MarketCategories {
         if (AXOLOTL.matcher(lower).find()) found.add("Питомцы");
         if (HELL_EXPERIENCE_ITEM.matcher(source).find()) found.add("Адский опыт");
         else if (ENDER_EXPERIENCE_ITEM.matcher(source).find()) found.add("Энд опыт");
-        else if (EXPERIENCE_ITEM.matcher(source).find()) found.add("Опыт");
+        else if (PET_EXPERIENCE_ITEM.matcher(source).find() || EXPERIENCE_ITEM.matcher(source).find()) found.add("Опыт");
+        if (POTION_ITEM.matcher(source).find()) found.add("Зелья");
+        if (lower.matches("(?s).*охотк\\p{L}*.*")) found.add("Охотки");
+        if (RUNE_UPGRADE.matcher(source).find()) found.add("Руны");
+        if (GOLD_BAGS.matcher(source).find()) found.add("Мешочки с золотом");
         if (LEG_UPGRADE.matcher(lower).find()) found.add("Лег апгрейд");
         if (BOARDS.matcher(lower).find()) found.add("Доски");
-        if (FISHING_TREE.matcher(source).find() || TREE_ITEM.matcher(source).matches()) found.add("Дерево");
+        if (FISHING_TREE.matcher(source).find() || TREE_ITEM.matcher(source).find()) found.add("Дерево");
         if (FLASKS_ITEM.matcher(source).matches()) found.add("Колбы");
         if (remaining.contains("душ")) found.add("Души");
         if (remaining.contains("рун")) found.add("Руны");
@@ -241,10 +261,12 @@ public final class MarketCategories {
         if (remaining.contains("пепел")) found.add("Пепел");
         if (remaining.contains("незер") && remaining.contains("ядр")) found.add("Незер. ядра");
         if (remaining.contains("клубок паутин") || remaining.contains("клубки паутин")) found.add("Клубки паутины");
-        if (!found.contains("ЗО") && GOLD_NUTS.matcher(remaining).find()) found.add("ЗО");
-        if (!found.contains("РО") && RARE_NUTS.matcher(remaining).find()) found.add("РО");
-        if (!found.contains("ЗО") && !found.contains("РО") && (remaining.contains("орех") || remaining.contains("орешк"))) {
-            found.add("Орешки");
+        if (GOLD_NUTS.matcher(remaining).find()) found.add("ЗО");
+        if (RARE_NUTS.matcher(remaining).find()) found.add("РО");
+        // Generic "орехи" is ambiguous on this server: show the offer in both nut tabs.
+        if (!found.contains("ЗО") && !found.contains("РО") && GENERIC_NUTS.matcher(remaining).find()) {
+            found.add("ЗО");
+            found.add("РО");
         }
 
         if (found.isEmpty()) {
@@ -327,7 +349,9 @@ public final class MarketCategories {
 
     private static boolean isCurrencyListing(String item, String rawText) {
         if (isCurrencyItem(item)) return true;
-        if (!isUnknown(item) && !BULK.matcher(item).find()) return false;
+        // Re-evaluate the original message for old history entries as well. The offer
+        // parser may previously have stored an adverb like "фастом" as the item; the
+        // source message is the reliable context for recognizing a currency lot.
         return isCurrencyOffer(rawText);
     }
 
@@ -392,15 +416,19 @@ public final class MarketCategories {
         if (AXOLOTL.matcher(lower).find()) return "Аксолотль";
         if (LEG_UPGRADE.matcher(lower).find()) return "Лег апгрейд";
         if (BOARDS.matcher(lower).find()) return "Доски";
-        if (HELL_BAT_TREASURE_FULL.matcher(lower).find() || ASLM_CODE.matcher(lower).find()) return "АСЛМ";
+        if (HELL_BAT_TREASURE_FULL.matcher(lower).find() || HELL_BAT_TREASURE_SHORT.matcher(lower).find() || ASLM_CODE.matcher(lower).find()) return "АСЛМ";
         if (ENDER_BAT_TREASURE_FULL.matcher(lower).find() || ESLM_CODE.matcher(lower).find()) return "ЭСЛМ";
         if (BAT_TREASURE_FULL.matcher(lower).find() || SLM_CODE.matcher(lower).find()) return "СЛМ";
+        if (GOLD_BAGS.matcher(lower).find()) return "Мешочки с золотом";
         if (isCosmeticItem(lower)) return "Косметика";
         if (HELL_EXPERIENCE_ITEM.matcher(lower).find()) return "Адский опыт";
         if (ENDER_EXPERIENCE_ITEM.matcher(lower).find()) return "Энд опыт";
-        if (EXPERIENCE_ITEM.matcher(lower).find()) return "Опыт";
-        if (FISHING_TREE.matcher(lower).find() || TREE_ITEM.matcher(lower).matches()) return "Дерево";
+        if (PET_EXPERIENCE_ITEM.matcher(lower).find() || EXPERIENCE_ITEM.matcher(lower).find()) return "Опыт";
+        if (POTION_ITEM.matcher(lower).find()) return "Зелья";
+        if (RUNE_UPGRADE.matcher(lower).find()) return "Руны";
+        if (FISHING_TREE.matcher(lower).find() || TREE_ITEM.matcher(lower).find()) return "Дерево";
         if (FLASKS_ITEM.matcher(lower).matches()) return "Колбы";
+        if (GENERIC_NUTS.matcher(lower).matches()) return "Орехи";
         if (lower.matches("(?iu)^кейс\\p{L}*$")) return "Кейсы";
         return null;
     }
@@ -411,7 +439,9 @@ public final class MarketCategories {
         String value = input.trim().replace('ё', 'е').replace('Ё', 'Е');
         // Amounts are quantities, not part of category names: 3ЛЛБ -> ЛЛБ, 3КК ад рыбы -> КК ад рыбы.
         value = value.replaceFirst("(?iu)^\\s*\\d+(?:[.,]\\d+)?\\s*", "");
-        value = value.replaceAll("(?iu)\\s+(?:подробност\\p{L}*|если\\s+ч[ее]|больше\\s*[-—]?\\s*больше)\\s*$", "");
+        value = value.replaceFirst("(?iu)^\\s*(?:(?:фастом|фастиком|fastom|fastikom|оптом)\\s+)+", "");
+        value = value.replaceFirst("(?iu)^\\s*за\\s+(?:лк|личн\\p{L}*\\s+кабинет\\p{L}*)(?:\\s+|$)", "");
+        value = value.replaceAll("(?iu)\\s+(?:за\\s+(?:лк|личн\\p{L}*\\s+кабинет\\p{L}*)|подробност\\p{L}*|если\\s+ч[ее]|больше\\s*[-—]?\\s*больше)\\s*[.!?]*$", "");
         value = value.replaceAll("[\\s.!?,;:()\\[\\]{}]+$", "");
         return value.replaceAll("\\s+", " ").trim();
     }
@@ -419,7 +449,7 @@ public final class MarketCategories {
     /** These items are not tradeable on the target server and should never appear as offers. */
     public static boolean isNonTradableItem(String item) {
         if (item == null) return false;
-        return Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])посох\\p{L}*(?![\\p{L}\\p{N}])")
+        return Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])(?:посох\\p{L}*|фулл\\s+балик)(?![\\p{L}\\p{N}])")
                 .matcher(item).find();
     }
 
@@ -432,8 +462,9 @@ public final class MarketCategories {
         if (item == null) return false;
         String value = item.trim();
         return FILLER_ITEM.matcher(value).matches()
-                || value.matches("(?iu)^(?:подробност\\p{L}*|если\\s+ч[её]|больше\\s*[-—]?\\s*больше)$")
-                || value.matches("(?iu)^кто\\s+(?:за|по)\\s+(?:лк|личн\\p{L}*\\s+кабинет\\p{L}*)\\s+много[.!?]*$");
+                || value.matches("(?iu)^(?:подробност\\p{L}*|если\\s+ч[её]|больше\\s*[-—]?\\s*больше|или\\s+обменяю|можно)$")
+                || value.matches("(?iu)^кто\\s+(?:за|по)\\s+(?:лк|личн\\p{L}*\\s+кабинет\\p{L}*)\\s+много[.!?]*$")
+                || value.matches("(?iu)^(?:мешки?|мешка|мешок|мешочек|мешочки)\\s+с[.!?]*$");
     }
 
     private static boolean hasToken(String text, String token) {

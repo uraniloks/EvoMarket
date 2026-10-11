@@ -363,6 +363,116 @@ public final class MarketParserSelfTest {
         check(MarketParser.parseAll("player [NexCore] [155]: так посох молний нельзя же продать и в целом все посохи", "tester", Instant.EPOCH).isEmpty(),
                 "joke about untradable staffs must be ignored");
 
+        // 0.1.15 regressions collected from the newest screenshots.
+        MarketOffer fastBulkCurrency = MarketParser.parse(
+                "player [NexCore] [155]: Продам фастом 5.5T за пак 299лк", "tester", Instant.EPOCH);
+        check(fastBulkCurrency != null && "Игровая валюта".equals(fastBulkCurrency.displayItem()),
+                "fastom currency sale must be currency, not a Fastom item");
+        check(fastBulkCurrency.categories().equals(List.of("Игровая валюта")),
+                "fastom currency sale has a single currency category: " + fastBulkCurrency.categories());
+        check(new BigDecimal("299").compareTo(fastBulkCurrency.price()) == 0,
+                "price after 'за пак' should be parsed as 299 LK: " + fastBulkCurrency.price());
+        check("ЛК".equals(fastBulkCurrency.paymentLabel()), "fastom lot payment should be LK");
+
+        MarketOffer fastikCurrency = MarketParser.parse(
+                "player [NexCore] [155]: Продам фастиком 15т за пак 950лк", "tester", Instant.EPOCH);
+        check(fastikCurrency != null && "Игровая валюта".equals(fastikCurrency.displayItem()),
+                "fastikom currency sale should be in the currency category");
+        check(new BigDecimal("950").compareTo(fastikCurrency.price()) == 0,
+                "fastikom price after 'за пак' should be parsed");
+
+        MarketOffer hellBatAbbreviation = MarketParser.parse(
+                "player [NexCore] [155]: Скупает адские СЛМ по 3в", "tester", Instant.EPOCH);
+        check(hellBatAbbreviation != null && hellBatAbbreviation.categories().contains("АСЛМ"),
+                "'адские СЛМ' should map to ASLM: " + (hellBatAbbreviation == null ? null : hellBatAbbreviation.categories()));
+        check(!hellBatAbbreviation.categories().contains("Адские"), "ASLM must not create a custom category");
+
+        List<MarketOffer> seekCosmetic = MarketParser.parseAll(
+                "player [NexCore] [155]: Ищу косметику \"Кошачьи ушки\" (Куплю или обменяю)", "tester", Instant.EPOCH);
+        check(seekCosmetic.size() == 1, "seek cosmetic with 'buy or exchange' should create one offer only: " + seekCosmetic.size());
+        check(seekCosmetic.get(0).categories().contains("Косметика"),
+                "cat ears offer should go to Cosmetics: " + seekCosmetic.get(0).categories());
+        check(seekCosmetic.stream().noneMatch(o -> o.categories().contains("Или обменяю")),
+                "'или обменяю' must not create a category");
+
+        MarketOffer wendigoSkin = MarketParser.parse("player [NexCore] [155]: Продам скин вендиго за лк", "tester", Instant.EPOCH);
+        check(wendigoSkin != null && wendigoSkin.categories().contains("Косметика"),
+                "Wendigo skin should be Cosmetics: " + (wendigoSkin == null ? null : wendigoSkin.categories()));
+        check("Косметика".equals(wendigoSkin.displayItem()), "Wendigo skin should have canonical display label");
+        check(MarketParser.parseAll("player [NexCore] [155]: Продам фулл балик", "tester", Instant.EPOCH).isEmpty(),
+                "full balic is not a market item");
+
+        MarketOffer petHellFish = MarketParser.parse(
+                "player [NexCore] [155]: Куплю рыбы для ада пета с 1 до 11 лвла", "tester", Instant.EPOCH);
+        check(petHellFish != null && petHellFish.categories().contains("Опыт"),
+                "pet level fish should go into regular Experience: " + (petHellFish == null ? null : petHellFish.categories()));
+        check(!petHellFish.categories().contains("Рыбы для"), "pet fish must not create a custom category");
+
+        MarketOffer bulkCurrencyWord = MarketParser.parse(
+                "player [NexCore] [155]: Покупаю ОЧЕНЬ много валюты по курсу 1к500м", "tester", Instant.EPOCH);
+        check(bulkCurrencyWord != null && bulkCurrencyWord.categories().contains("Игровая валюта"),
+                "very-much currency rate should be game currency");
+        check(bulkCurrencyWord.categories().stream().noneMatch(c -> c.equalsIgnoreCase("Очень много")),
+                "currency adverb should not create a category");
+
+        String[][] goldBagAliases = {
+                {"мешочки с золотом", "Мешочки с золотом"},
+                {"мешок с золотом", "Мешочки с золотом"},
+                {"мешка с золотом", "Мешочки с золотом"},
+                {"мешка", "Мешочки с золотом"},
+                {"мешочки золотта", "Мешочки с золотом"},
+                {"мешки с золотом", "Мешочки с золотом"}
+        };
+        int bagAliasIndex = 0;
+        for (String[] testCase : goldBagAliases) {
+            MarketOffer bag = MarketParser.parse("player [NexCore] [155]: Скупаю " + testCase[0] + " по 10б", "tester", Instant.EPOCH);
+            check(bag != null && bag.categories().contains(testCase[1]),
+                    "gold bag alias index=" + bagAliasIndex + " -> " + (bag == null ? null : bag.categories()));
+            check(bag.categories().stream().noneMatch(c -> c.matches("(?iu)мешк.*")),
+                    "no duplicate bag category: " + bag.categories());
+            bagAliasIndex++;
+        }
+        check(MarketParser.parseAll("player [NexCore] [155]: Продаю мешки с", "tester", Instant.EPOCH).isEmpty(),
+                "partial 'мешки с' is not a complete item");
+        check(MarketParser.parseAll("player [NexCore] [155]: Продаю мешок с", "tester", Instant.EPOCH).isEmpty(),
+                "partial 'мешок с' is not a complete item");
+
+        MarketOffer potionOfLoot = MarketParser.parse("player [NexCore] [155]: Продам зелья добычи за 5в", "tester", Instant.EPOCH);
+        check(potionOfLoot != null && potionOfLoot.categories().contains("Зелья"),
+                "potion of loot belongs to potions: " + (potionOfLoot == null ? null : potionOfLoot.categories()));
+        MarketOffer masterPotionAndHunts = MarketParser.parse("player [NexCore] [155]: Продам охотки и зелье мастера за 5в", "tester", Instant.EPOCH);
+        check(masterPotionAndHunts != null && masterPotionAndHunts.categories().containsAll(List.of("Охотки", "Зелья")),
+                "a listing with potions should also populate the Potions category: " + (masterPotionAndHunts == null ? null : masterPotionAndHunts.categories()));
+
+        check(MarketParser.parseAll("player [NexCore] [155]: а лег апгрейд лопаты продать можно?", "tester", Instant.EPOCH).isEmpty(),
+                "a question asking if an item can be sold is not an offer");
+        check(MarketParser.parseAll("player [NexCore] [155]: дп кейсы покупает кто-то на ауке?", "tester", Instant.EPOCH).isEmpty(),
+                "question about someone else buying at auction is not an offer");
+
+        MarketOffer runicUpgradeForCurrency = MarketParser.parse(
+                "player [NexCore] [155]: [Рунический апгрейд] продаю за 10т", "tester", Instant.EPOCH);
+        check(runicUpgradeForCurrency != null && runicUpgradeForCurrency.categories().contains("Руны"),
+                "bracketed runic upgrade before a sell verb belongs to Runes: " + (runicUpgradeForCurrency == null ? null : runicUpgradeForCurrency.categories()));
+        check(!runicUpgradeForCurrency.categories().contains("За"), "currency preposition must not become item category");
+
+        MarketOffer countedTree = MarketParser.parse(
+                "player [NexCore] [155]: Куплю дерево 30 штуки, проклятый жемчуг 7 шт по хорошей цене писать в лс", "tester", Instant.EPOCH);
+        check(countedTree != null && countedTree.categories().contains("Дерево"),
+                "tree with count and extra text belongs to Tree: " + (countedTree == null ? null : countedTree.categories()));
+        check("Дерево".equals(countedTree.displayItem()), "counted fishing tree should display simply as Tree");
+
+        MarketOffer currencyPrefixedByLk = MarketParser.parse(
+                "player [NexCore] [155]: Продаю за ЛК 5T, курс: 1в к 1", "tester", Instant.EPOCH);
+        check(currencyPrefixedByLk != null && currencyPrefixedByLk.categories().contains("Игровая валюта"),
+                "LK-first currency offer should be categorized as game currency: " + (currencyPrefixedByLk == null ? null : currencyPrefixedByLk.categories()));
+        check("ЛК".equals(currencyPrefixedByLk.paymentLabel()), "LK-first currency quote uses LK as payment");
+        check(!currencyPrefixedByLk.categories().contains("За лк"), "payment phrase must never become a category");
+
+        MarketOffer genericNuts = MarketParser.parse("player [NexCore] [155]: Продам орехи за 5в", "tester", Instant.EPOCH);
+        check(genericNuts != null && genericNuts.categories().containsAll(List.of("ЗО", "РО")),
+                "unspecified nuts should appear in both ZO and RO: " + (genericNuts == null ? null : genericNuts.categories()));
+        check(!genericNuts.categories().contains("Орешки"), "generic nuts should not get their own category");
+
         System.out.println("MarketParserSelfTest: all checks passed");
     }
 

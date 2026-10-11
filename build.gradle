@@ -40,9 +40,31 @@ java {
     targetCompatibility = JavaVersion.VERSION_25
     withSourcesJar()
 }
-// The current parser check is a dependency-free main() self-test, not a JUnit test.
-// Gradle 9.7 treats an empty discovered test suite as a failure by default.
-// Allow the build to continue; the self-test can be converted to JUnit separately.
+// This project uses a dependency-free main() regression suite for the chat parser.
+// Keep Gradle's empty JUnit test task from failing, and explicitly run the self-test
+// as part of `check` / `build` so each published build validates the known chat cases.
 tasks.withType(Test).configureEach {
     failOnNoDiscoveredTests = false
+}
+
+tasks.register('marketParserSelfTest', JavaExec) {
+    group = 'verification'
+    description = 'Runs EvoMarket chat parser regression checks.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'ru.boss.evomarket.core.MarketParserSelfTest'
+}
+
+tasks.register('modrinthVersionSelfTest', JavaExec) {
+    group = 'verification'
+    description = 'Runs regression checks for Modrinth version ordering.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'ru.boss.evomarket.evoplus.ModrinthVersionCompareSelfTest'
+}
+
+
+tasks.named('check') {
+    dependsOn tasks.named('marketParserSelfTest')
+    dependsOn tasks.named('modrinthVersionSelfTest')
 }

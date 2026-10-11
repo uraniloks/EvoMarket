@@ -1,14 +1,33 @@
-# EvoMarket 0.1.14
+# EvoMarket 0.1.16
 
-**Author:** uraniloks
+**Автор:** uraniloks
+
+## Проверка обновлений Modrinth
+
+- При запуске и затем раз в 12 часов аддон проверяет список опубликованных совместимых версий на Modrinth.
+- Если доступна новая версия, отображается окно с номером версии и кратким списком изменений.
+- «Открыть Modrinth» открывает страницу проекта, а «Позже» скрывает уведомление на 24 часа.
+- Проверку можно отключить в настройках EvoPlus.
+- JAR не скачивается и не заменяется автоматически: обновление устанавливается вручную с Modrinth.
+- Если проект ещё не опубликован (например, API отвечает 404) или сеть недоступна, ошибка не мешает игре, а проверка повторяется позже.
+- Запланированный slug проекта: `evomarket`. Если фактическая ссылка Modrinth использует другой slug, измени `MODRINTH_PROJECT_SLUG` в `ModrinthUpdateChecker.java`.
+
+## Скачать и сообщить об ошибке
+
+- **Modrinth:** https://modrinth.com/mod/evomarket
+- **GitHub Releases:** https://github.com/uraniloks/EvoMarket/releases
+- **Сообщить об ошибке:** https://github.com/uraniloks/EvoMarket/issues
+- **Исходный код:** https://github.com/uraniloks/EvoMarket
+
+Modrinth — рекомендуемое место для скачивания готового мода. GitHub содержит исходники и дополнительные файлы релизов.
 
 ## Сборка и установка на Windows
 
 1. Установи **JDK 25**: https://adoptium.net/temurin/releases/?version=25 (Windows x64, MSI).
 2. Распакуй архив в обычную папку.
 3. Запусти `BUILD.bat`. При первой сборке скрипт скачает Gradle и зависимости, поэтому нужен интернет.
-4. Дождись `BUILD SUCCESSFUL`.
-5. Скопируй `build\libs\evomarket-0.1.14.jar` в папку `mods` того же профиля Minecraft 26.2, где стоят EvoPlus и Fabric API. Удали прежние версии EvoMarket из `mods`.
+4. Дождись `BUILD SUCCESSFUL`. Во время сборки запускаются `MarketParserSelfTest` и `ModrinthVersionCompareSelfTest`, которые проверяют известные примеры торгового чата и сравнение версий.
+5. Скопируй `build\libs\evomarket-0.1.16.jar` в папку `mods` того же профиля Minecraft 26.2, где стоят EvoPlus и Fabric API. Удали прежние версии EvoMarket из `mods`.
 6. Запусти Minecraft. В окне аддонов EvoPlus появится EvoMarket; окно открывается сочетанием `Ctrl+M`.
 
 Архив содержит исходники, а не готовый JAR. JAR создаётся командой `BUILD.bat` на твоём компьютере.
@@ -54,9 +73,9 @@
 
 ## Publishing on Modrinth
 
-This source package is for building EvoMarket 0.1.14. Run `BUILD.bat` on Windows with JDK 25 installed, then upload only `build/libs/evomarket-0.1.14.jar` to Modrinth. Do not upload the source ZIP or `-sources.jar` as the mod file. The Fabric metadata license is set to `All-Rights-Reserved` to match the intended Modrinth project setting.
+This source package is for building EvoMarket 0.1.16. Run `BUILD.bat` on Windows with JDK 25 installed, then upload only `build/libs/evomarket-0.1.16.jar` to Modrinth. Do not upload the source ZIP or `-sources.jar` as the mod file. The Fabric metadata license is set to `All-Rights-Reserved` to match the intended Modrinth project setting.
 
-## 0.1.14
+## Предыдущие улучшения парсера (0.1.14)
 
 - Normalized item names before classification so leading quantities and trailing punctuation do not create duplicate categories.
 - Mapped `3кк ад рыбы` and related variants to `Адский опыт`.
@@ -66,3 +85,27 @@ This source package is for building EvoMarket 0.1.14. Run `BUILD.bat` on Windows
 - Classified `очень много валки по курсу ...` as `Игровая валюта`, not a custom `Очень много` category.
 - Filtered jokes and non-trade messages, including untradeable staff items, photos of feet, and `кто за ЛК много`.
 - Added regression checks for the reported chat examples.
+
+
+## 0.1.16 — Проверка обновлений Modrinth
+
+- Добавлена проверка опубликованных совместимых версий на Modrinth при запуске и затем раз в 12 часов.
+- При выходе более новой версии появляется окно с номером и кратким списком изменений.
+- Кнопка «Открыть Modrinth» ведёт на страницу загрузки; «Позже» скрывает уведомление на 24 часа.
+- Проверку можно отключить в настройках EvoPlus.
+- Автоматического скачивания или замены JAR нет: обновление устанавливается вручную.
+
+## 0.1.15 — Chat parsing fixes
+
+- Currency offers prefixed with `фастом`, `фастиком`, or `оптом` are grouped into `Игровая валюта`; prices such as `за пак 299 ЛК` are parsed separately.
+- Added recognition of `адские СЛМ` as `АСЛМ`.
+- Added `ищу` offer detection so messages such as seeking cosmetic cat ears are categorized as `Косметика`; the trailing phrase `или обменяю` is not treated as an item.
+- Wendigo and Warden skins are grouped into `Косметика`.
+- `рыбы для ада/энда пета` is grouped into `Опыт`; `энд опыт` and `энд рыба` stay together.
+- Added a single `Мешочки с золотом` category for bag naming variants.
+- Added the `Зелья` category, including potions of loot.
+- Fixed false listings from questions such as `продать можно?` and questions about someone buying on auction.
+- Bracketed item names before a trade verb, such as `[Рунический апгрейд] продаю за 10т`, are recognized.
+- `дерево 30 штук` is categorized as `Дерево`; `ЛК` remains a payment method rather than a category.
+- Generic `орехи` offers appear in both `ЗО` and `РО` until a gold/rare subtype is specified.
+- `фулл балик` and other non-tradeable/joke offers are filtered.

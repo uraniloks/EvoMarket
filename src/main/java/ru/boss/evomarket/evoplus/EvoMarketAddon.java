@@ -28,6 +28,11 @@ public final class EvoMarketAddon implements EvoPlusAddon {
         general.button("clear-history", "История", "Очистить историю", () -> store.clear())
                 .description("Удаляет сохранённые объявления с этого компьютера.");
 
+        BooleanSetting updateChecks = general.toggle("check-updates", "Проверять обновления", true)
+                .description("Проверять совместимые опубликованные версии EvoMarket на Modrinth при запуске и раз в 12 часов.");
+        new ModrinthUpdateChecker(addon, updateChecks::get,
+                addon.getAddonFolder().resolve("update-state.properties")).register();
+
         general.widget("market-summary", "Сводка EvoMarket", 160, 34, ctx -> {
             ctx.rect(0, 0, ctx.getWidth(), ctx.getHeight(), 0xB0101018);
             ctx.text("EvoMarket · " + store.size() + " объявл.", 5, 4, 0xFFFFFFFF, true);
