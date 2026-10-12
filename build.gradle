@@ -1,0 +1,70 @@
+plugins {
+    id 'net.fabricmc.fabric-loom' version '1.18-SNAPSHOT'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://jitpack.io' }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+    // EvoPlus supplies the API at runtime. Do not bundle it into our jar.
+    compileOnly 'com.github.evo-plus:evo-plus-api:1.8.0'
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') {
+        expand 'version': project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 25
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
+    withSourcesJar()
+}
+// This project uses a dependency-free main() regression suite for the chat parser.
+// Keep Gradle's empty JUnit test task from failing, and explicitly run the self-test
+// as part of `check` / `build` so each published build validates the known chat cases.
+tasks.withType(Test).configureEach {
+    failOnNoDiscoveredTests = false
+}
+
+tasks.register('marketParserSelfTest', JavaExec) {
+    group = 'verification'
+    description = 'Runs EvoMarket chat parser regression checks.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'ru.boss.evomarket.core.MarketParserSelfTest'
+}
+
+tasks.register('modrinthVersionSelfTest', JavaExec) {
+    group = 'verification'
+    description = 'Runs regression checks for Modrinth version ordering.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'ru.boss.evomarket.evoplus.ModrinthVersionCompareSelfTest'
+}
+
+
+tasks.named('check') {
+    dependsOn tasks.named('marketParserSelfTest')
+    dependsOn tasks.named('modrinthVersionSelfTest')
+}
