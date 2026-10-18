@@ -36,7 +36,8 @@ public final class MarketStore {
 
     public synchronized boolean add(MarketOffer offer) {
         // Never persist non-offers caused by filler after a trade verb (e.g. "если че").
-        if (offer == null || MarketCategories.isFillerItem(offer.item())) return false;
+        if (offer == null || MarketCategories.isFillerItem(offer.item())
+                || MarketCategories.isNonItemCategoryLabel(offer.item())) return false;
         // Suppress repeated reposts of the exact same listing even when they arrive minutes apart.
         String fingerprint = fingerprint(offer);
         if (offers.stream().anyMatch(existing -> fingerprint(existing).equals(fingerprint))) return false;
@@ -90,7 +91,8 @@ public final class MarketStore {
                     Instant time = Instant.parse(decode(parts[0]));
                     TradeAction action = TradeAction.valueOf(decode(parts[1]));
                     String item = decode(parts[2]);
-                    if (MarketCategories.isFillerItem(item)) continue;
+                    if (MarketCategories.isFillerItem(item)
+                            || MarketCategories.isNonItemCategoryLabel(item)) continue;
                     String priceText = decode(parts[3]);
                     BigDecimal price = priceText.isBlank() ? null : new BigDecimal(priceText);
                     String seller = decode(parts[4]);

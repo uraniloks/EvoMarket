@@ -1,7 +1,5 @@
 package ru.boss.evomarket.evoplus;
 
-import com.mojang.authlib.GameProfile;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import ru.boss.evomarket.core.MarketOffer;
 import ru.boss.evomarket.core.MarketParser;
 import ru.boss.evomarket.core.MarketStore;
@@ -17,6 +15,8 @@ import java.util.function.BooleanSupplier;
  * windows; the canceled events let EvoMarket still inspect that received text.
  */
 public final class MarketScanner {
+    private static volatile MarketScanner activeScanner;
+
     private final MarketStore store;
     private final BooleanSupplier enabled;
 
@@ -34,20 +34,33 @@ public final class MarketScanner {
         this.enabled = enabled;
     }
 
+    /**
+     * Publishes this scanner instance for the regular Fabric client entrypoint.
+     * Receive-event subscriptions are deliberately registered by
+     * EvoMarketClientInitializer, not by the EvoPlus addon lifecycle. That keeps
+     * event registration in Fabric's normal client classloader/lifecycle.
+     */
     public void register() {
-        ClientReceiveMessageEvents.CHAT.register((message, playerChatMessage, sender, boundChatType, timestamp) ->
-                handle("CHAT", message.getString(), senderName(sender), timestamp));
+        activeScanner = this;
+        lastChannel = "слушатель активен";
+        lastResult = "ожидание сообщений Fabric client events";
+        System.out.println("[EvoMarket] Scanner instance attached; waiting for client chat events.");
+    }
 
-        ClientReceiveMessageEvents.GAME.register((message, overlay) ->
-                handle(overlay ? "GAME / actionbar" : "GAME", message.getString(), null, Instant.now()));
+    /** Called by the Fabric client entrypoint for each received chat/game message. */
+    public static void receiveFromFabric(String channel, String raw, String sender, Instant timestamp) {
+        MarketScanner scanner = activeScanner;
+        if (scanner != null) {
+            scanner.handle(channel, raw, sender, timestamp);
+        }
+    }
 
-        // Other client mods (chat replacements, filters, channel windows) can
-        // cancel vanilla display after receiving a message. Scan those too.
-        ClientReceiveMessageEvents.CHAT_CANCELED.register((message, playerChatMessage, sender, boundChatType, timestamp) ->
-                handle("CHAT_CANCELED", message.getString(), senderName(sender), timestamp));
-
-        ClientReceiveMessageEvents.GAME_CANCELED.register((message, overlay) ->
-                handle(overlay ? "GAME_CANCELED / actionbar" : "GAME_CANCELED", message.getString(), null, Instant.now()));
+    /** Receives the same raw pre-channel message from ChatManager-Core / DiamondChat. */
+    public static void receiveFromChatManager(String raw, String sender, Instant timestamp) {
+        MarketScanner scanner = activeScanner;
+        if (scanner != null) {
+            scanner.handle("CHATMANAGER", raw, sender, timestamp);
+        }
     }
 
     private void handle(String channel, String raw, String sender, Instant timestamp) {
@@ -60,29 +73,31 @@ public final class MarketScanner {
             return;
         }
 
-        List<MarketOffer> offers = MarketParser.parseAll(raw, sender,
-                timestamp == null ? Instant.now() : timestamp);
-        if (offers.isEmpty()) {
-            ignored.incrementAndGet();
-            lastResult = "сообщение получено, но ключевое слово покупки/продажи не найдено";
-            return;
-        }
-
-        parsed.addAndGet(offers.size());
-        int added = 0;
-        for (MarketOffer offer : offers) {
-            if (store.add(offer)) {
-                saved.incrementAndGet();
-                added++;
+        try {
+            List<MarketOffer> offers = MarketParser.parseAll(raw, sender,
+                    timestamp == null ? Instant.now() : timestamp);
+            if (offers.isEmpty()) {
+                ignored.incrementAndGet();
+                lastResult = "сообщение получено, но торговое объявление не распознано";
+                return;
             }
-        }
-        lastResult = added > 0
-                ? "добавлено объявлений: " + added + " из " + offers.size()
-                : "объявление уже было получено — повтор пропущен";
-    }
 
-    private static String senderName(GameProfile sender) {
-        return sender == null ? null : sender.name();
+            parsed.addAndGet(offers.size());
+            int added = 0;
+            for (MarketOffer offer : offers) {
+                if (store.add(offer)) {
+                    saved.incrementAndGet();
+                    added++;
+                }
+            }
+            lastResult = added > 0
+                    ? "добавлено объявлений: " + added + " из " + offers.size()
+                    : "повтор объявления пропущен — оно уже есть в истории";
+        } catch (RuntimeException exception) {
+            ignored.incrementAndGet();
+            lastResult = "ошибка разбора сообщения: " + exception.getClass().getSimpleName();
+            System.err.println("[EvoMarket] Ошибка обработки сообщения: " + exception.getMessage());
+        }
     }
 
     private static String compact(String value, int max) {
@@ -100,4 +115,23 @@ public final class MarketScanner {
     public String lastMessage() { return lastMessage; }
     public String lastResult() { return lastResult; }
     public boolean isEnabled() { return enabled.getAsBoolean(); }
+
+    /** Compact status shown in the HUD and market window to diagnose missed offers. */
+    public String statusLine() {
+        return "Сканер: " + (isEnabled() ? "ВКЛ" : "ВЫКЛ")
+                + " · сообщений: " + receivedCount()
+                + " · распознано: " + parsedCount()
+                + " · добавлено: " + savedCount();
+    }
+
+    /** History clear also resets session diagnostics, so new activity is easy to verify. */
+    public void resetSessionCounters() {
+        received.set(0);
+        parsed.set(0);
+        saved.set(0);
+        ignored.set(0);
+        lastChannel = "ожидание";
+        lastMessage = "пока сообщений не получено";
+        lastResult = "открой чат на сервере, чтобы проверить сканер";
+    }
 }

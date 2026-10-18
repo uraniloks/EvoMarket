@@ -144,6 +144,7 @@ public final class MarketParser {
             }
             if (GENERIC_ITEM.matcher(item.trim()).matches() || isFillerOnly(item)
                     || MarketCategories.isFillerItem(item)
+                    || MarketCategories.isNonItemCategoryLabel(item)
                     || MarketCategories.isNonTradableItem(item)) continue;
             String paymentMethod = MarketCategories.paymentMethod(item, segment);
             offers.add(new MarketOffer(safeTimestamp, intent.action, item,
@@ -157,6 +158,7 @@ public final class MarketParser {
             String item = cleanItem(reversed.group("item")
                     .replaceAll("(?iu)\\s+(?:тож(?:е)?|также)\\s*$", ""));
             if (item.isBlank() || isFillerOnly(item) || MarketCategories.isFillerItem(item)
+                    || MarketCategories.isNonItemCategoryLabel(item)
                     || MarketCategories.isNonTradableItem(item)) continue;
             TradeAction action = reversed.group("buy") != null ? TradeAction.BUY : TradeAction.SELL;
             String finalItem = item;

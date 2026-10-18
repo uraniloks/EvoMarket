@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0"
 echo ==============================================
-echo EvoMarket 0.1.17 - Minecraft 26.2 build
+echo EvoMarket 0.1.18 - Minecraft 26.2 build
 echo ==============================================
 echo.
 where java >nul 2>&1
@@ -21,7 +21,7 @@ set "RESULT=1"
 goto finish
 :success
 echo BUILD SUCCESSFUL.
-echo Expected JAR: %~dp0build\libs\evomarket-0.1.17.jar
+echo Expected JAR: %~dp0build\libs\evomarket-0.1.18.jar
 echo Copy it into the mods folder of your Minecraft 26.2 Fabric profile.
 set "RESULT=0"
 :finish

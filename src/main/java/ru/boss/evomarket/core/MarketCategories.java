@@ -171,6 +171,13 @@ public final class MarketCategories {
     private static final Pattern RUNE_UPGRADE = Pattern.compile("(?iu)руническ\\p{L}*\\s+апгре[йи]д\\p{L}*");
     private static final Pattern GENERIC_NUTS = Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])(?:орех\\p{L}*|орешк\\p{L}*)(?![\\p{L}\\p{N}])");
 
+    private static final Pattern NON_ITEM_CATEGORY = Pattern.compile(
+            "(?iu)^(?:по(?:\\s+и)?|кто(?:-?то)?(?:\\s+на)?|мне|им(?:\\s+на)?|до\\s+ловлю|гараж|у\\s+нас|бомбы\\s+пиши|бомбо[чш]к\\p{L}*\\s+за|много\\s+лю|по\\s+сочнейшему|тима\\s+играть|очень\\s+много|за\\s+лк|фастом|фастиком|или\\s+обменяю)[.!?\\s]*$"
+    );
+    private static final Pattern DANGLING_CATEGORY_WORD = Pattern.compile(
+            "(?iu)^.*\\s+(?:за|на|в|и|с|от|по|к|не|для|лс|личку)$"
+    );
+
     private MarketCategories() {}
 
     public static String displayItem(String item, String rawText) {
@@ -303,7 +310,7 @@ public final class MarketCategories {
 
         if (found.isEmpty()) {
             String custom = inferCustomCategory(source);
-            found.add(custom);
+            if (!custom.isBlank() && !isNonItemCategoryLabel(custom)) found.add(custom);
         }
 
         List<String> result = new ArrayList<>(found);
@@ -514,6 +521,45 @@ public final class MarketCategories {
                 || value.matches("(?iu)^(?:мешки?|мешка|мешок|мешочек|мешочки)\\s+с[.!?]*$");
     }
 
+    /** Canonicalize or reject a persisted user-hidden category from older buggy builds. */
+    public static String normalizeHiddenCategory(String category) {
+        if (category == null || category.isBlank()) return null;
+        String value = normalizeForMatching(category);
+        if (value.isBlank() || isNonItemCategoryLabel(value)) return null;
+
+        // LC/payment markers are metadata, never item categories. Keep the user's
+        // explicitly requested legendary block alias (ЛЛК) after dropping trailing "не".
+        if (LK_ONLY_ITEM.matcher(value).matches() && !LEGENDARY_LK_CODE.matcher(value).matches()) return null;
+
+        List<String> inferred = categoriesFor(value, value);
+        if (inferred.size() > 1) return null; // old bad labels such as "ЛЛБ РАКР" mixed two goods
+        String canonical = canonicalNamedItem(value);
+        if (canonical != null) return canonical;
+        if (isCurrencyItem(value)) return "Игровая валюта";
+        if (DANGLING_CATEGORY_WORD.matcher(value).matches()) return null;
+        if (value.length() < 3 && !ORDER.stream().anyMatch(c -> c.equalsIgnoreCase(value))) return null;
+        return title(value);
+    }
+
+    /** True for accidental sentence fragments that must never become dynamic category buttons. */
+    public static boolean isNonItemCategoryLabel(String category) {
+        if (category == null || category.isBlank()) return true;
+        String value = normalizeForMatching(category);
+        if (value.isBlank()) return true;
+        // If the phrase already identifies a known tradable item, it isn't a sentence fragment
+        // (for example "к опыта" is a server alias for regular experience).
+        if (canonicalNamedItem(value) != null) return false;
+        // A recognized in-game-currency phrase is a valid trade item, even when it ends
+        // with the shorthand "к" (as in "валку к"); LC-only tokens remain payment metadata.
+        if (CURRENCY_ALIAS.matcher(value).matches() || CURRENCY_WORD_ALIAS.matcher(value).matches()
+                || CURRENCY_BULK_ALIAS.matcher(value).matches() || CURRENCY_PREFIX.matcher(value).find()
+                || INGAME_CURRENCY.matcher(value).find()) return false;
+        if (NON_ITEM_CATEGORY.matcher(value).matches()) return true;
+        if (LK_ONLY_ITEM.matcher(value).matches() && !LEGENDARY_LK_CODE.matcher(value).matches()) return true;
+        if (DANGLING_CATEGORY_WORD.matcher(value).matches()) return true;
+        return value.matches("(?iu)^(?:к\\s+адского|к\\s+опыт\\p{L}*|опыт\\s*-|колб\\p{L}*\\s+для|мешк\\p{L}*\\s+с|дерево\\s+штук|валк\\p{L}*\\s+за\\s+лк|за\\s+лк|очень\\s+много)$");
+    }
+
     private static boolean hasToken(String text, String token) {
         return Pattern.compile("(?iu)(?<![\\p{L}\\p{N}])" + Pattern.quote(token) + "(?![\\p{L}\\p{N}])")
                 .matcher(text).find();
@@ -527,7 +573,7 @@ public final class MarketCategories {
                 .replaceAll("[/\\\\,;:.!?()\\[\\]{}]+", " ")
                 .replaceAll("\\d+", " ")
                 .replaceAll("\\s+", " ").trim();
-        if (value.isBlank()) return "Другое";
+        if (value.isBlank() || isNonItemCategoryLabel(value)) return "";
         String[] words = value.split(" ");
         String first = words[0];
         if (first.matches("(?iu)(?:не|это|предмет|игровая|игровой|игровую|просто|всё|все)")) {

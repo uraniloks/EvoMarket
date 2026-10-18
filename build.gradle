@@ -63,8 +63,34 @@ tasks.register('modrinthVersionSelfTest', JavaExec) {
     mainClass = 'ru.boss.evomarket.evoplus.ModrinthVersionCompareSelfTest'
 }
 
+tasks.register('sellerListSelfTest', JavaExec) {
+    group = 'verification'
+    description = 'Checks persistent favorites and ignored-player lists.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'ru.boss.evomarket.core.SellerListStoreSelfTest'
+}
+
+tasks.register('marketScannerBridgeSelfTest', JavaExec) {
+    group = 'verification'
+    description = 'Checks that Fabric client messages reach the active EvoMarket scanner.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'ru.boss.evomarket.evoplus.MarketScannerBridgeSelfTest'
+}
+
+tasks.register('marketOfferSorterSelfTest', JavaExec) {
+    group = 'verification'
+    description = 'Checks newest and currency-aware price sorting.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'ru.boss.evomarket.core.MarketOfferSorterSelfTest'
+}
 
 tasks.named('check') {
     dependsOn tasks.named('marketParserSelfTest')
     dependsOn tasks.named('modrinthVersionSelfTest')
+    dependsOn tasks.named('sellerListSelfTest')
+    dependsOn tasks.named('marketOfferSorterSelfTest')
+    dependsOn tasks.named('marketScannerBridgeSelfTest')
 }

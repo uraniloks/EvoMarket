@@ -29,7 +29,7 @@ final class ModrinthUpdateChecker {
     /** Keep this equal to the project's Modrinth slug after the project page is created. */
     static final String MODRINTH_PROJECT_SLUG = "evomarket";
     static final String MODRINTH_PROJECT_URL = "https://modrinth.com/mod/" + MODRINTH_PROJECT_SLUG;
-    static final String CURRENT_VERSION = "0.1.17";
+    static final String CURRENT_VERSION = "0.1.18";
     private static final String API_URL = "https://api.modrinth.com/v2/project/" + MODRINTH_PROJECT_SLUG
             + "/version?loaders=%5B%22fabric%22%5D&game_versions=%5B%2226.2%22%5D&include_changelog=true";
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(8);

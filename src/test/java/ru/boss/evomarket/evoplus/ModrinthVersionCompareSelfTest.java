@@ -5,6 +5,7 @@ import ru.boss.evomarket.core.VersionOrder;
 /** Dependency-free version ordering checks for the Modrinth update checker. */
 public final class ModrinthVersionCompareSelfTest {
     public static void main(String[] args) {
+        check("0.1.18", "0.1.17", 1);
         check("0.1.17", "0.1.16", 1);
         check("0.1.16", "0.1.15", 1);
         check("0.1.10", "0.1.9", 1);

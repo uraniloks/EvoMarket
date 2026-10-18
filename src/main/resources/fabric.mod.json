@@ -12,6 +12,9 @@
   "entrypoints": {
     "evo-plus": [
       "ru.boss.evomarket.evoplus.EvoMarketAddon"
+    ],
+    "client": [
+      "ru.boss.evomarket.evoplus.EvoMarketClientInitializer"
     ]
   },
   "depends": {
@@ -21,5 +24,8 @@
     "evo-plus": "*",
     "java": ">=25"
   },
-  "icon": "assets/evomarket/icon.png"
+  "icon": "assets/evomarket/icon.png",
+  "suggests": {
+    "chatmanager_core": ">=1.2.0"
+  }
 }

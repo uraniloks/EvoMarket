@@ -199,6 +199,27 @@ public final class MarketParserSelfTest {
         MarketStore reloaded = new MarketStore(historyFile);
         check(reloaded.size() == 1, "history should reload without duplicate copies");
 
+        // Clearing history must not disable future capture. Reproduce the exact-shaped
+        // chat line reported by the user and ensure a fresh post-clear offer is stored.
+        reloaded.clear();
+        MarketOffer postClearRlb = MarketParser.parse(
+                "12:00:59 [KILLER] melida163 [NexCore] [467]: Скупаю РЛБ, 350Б - Шт. в ЛС /m melida163",
+                "melida163", Instant.EPOCH.plusSeconds(300));
+        check(postClearRlb != null && postClearRlb.categories().contains("РЛБ"),
+                "post-clear RLB message should parse into the RLB category");
+        check(reloaded.add(postClearRlb), "a new offer after clear should be stored");
+        check(reloaded.size() == 1, "history count should increase after a new post-clear offer");
+
+        Path migratedHiddenFile = tempDir.resolve("hidden-categories-migration.txt");
+        Files.writeString(migratedHiddenFile, "По и\nКто-то\nЛЛБ РАКР\nЛК не\nЛЛК не\nКР\nЛавовые кристаллы\n", java.nio.charset.StandardCharsets.UTF_8);
+        CategoryVisibilityStore hiddenStore = new CategoryVisibilityStore(migratedHiddenFile);
+        check(!hiddenStore.hiddenCategories().contains("По и"), "sentence fragment hidden category should be pruned");
+        check(!hiddenStore.hiddenCategories().contains("ЛЛБ РАКР"), "mixed-item hidden category should be pruned");
+        check(!hiddenStore.hiddenCategories().contains("ЛК не"), "LC payment metadata shouldn't be a category");
+        check(hiddenStore.hiddenCategories().contains("ЛЛК"), "trailing 'не' should be normalized from ЛЛК category");
+        check(hiddenStore.hiddenCategories().contains("КР"), "valid hidden category should be preserved");
+        check(hiddenStore.hiddenCategories().contains("Лавовые кристаллы"), "valid multiword hidden category should be preserved");
+
         // DiamondWorld-specific case and Bat Treasure taxonomy. Each special subtype
         // must have its own category and must not leak into the generic cases/runes tabs.
         String[][] caseAliases = {
