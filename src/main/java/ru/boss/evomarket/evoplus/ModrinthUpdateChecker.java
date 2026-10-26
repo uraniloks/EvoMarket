@@ -29,7 +29,7 @@ final class ModrinthUpdateChecker {
     /** Keep this equal to the project's Modrinth slug after the project page is created. */
     static final String MODRINTH_PROJECT_SLUG = "evomarket";
     static final String MODRINTH_PROJECT_URL = "https://modrinth.com/mod/" + MODRINTH_PROJECT_SLUG;
-    static final String CURRENT_VERSION = "0.1.18";
+    static final String CURRENT_VERSION = "0.1.19";
     private static final String API_URL = "https://api.modrinth.com/v2/project/" + MODRINTH_PROJECT_SLUG
             + "/version?loaders=%5B%22fabric%22%5D&game_versions=%5B%2226.2%22%5D&include_changelog=true";
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(8);
@@ -80,7 +80,7 @@ final class ModrinthUpdateChecker {
         if (update == null || update.version().equals(shownVersion)) return;
         // Minecraft 26.2 no longer exposes the old `client.screen` field.
         // Wait until the player is in a world, then show the EvoPlus notice window.
-        if (client.player == null || client.level == null) return;
+        if (client.player == null || client.level == null || MarketWindow.isOpen()) return;
         if (state.isSnoozed(update.version(), now, SNOOZE_MS)) return;
 
         // Set before opening so the tick callback cannot spawn multiple windows.
@@ -174,7 +174,7 @@ final class ModrinthUpdateChecker {
             properties.setProperty("dismissedVersion", dismissedVersion);
             properties.setProperty("dismissedAt", Long.toString(dismissedAt));
             try {
-                Files.createDirectories(file.getParent());
+                Files.createDirectories(file.toAbsolutePath().getParent());
                 try (var output = Files.newOutputStream(file, StandardOpenOption.CREATE,
                         StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
                     properties.store(output, "EvoMarket update notification state");

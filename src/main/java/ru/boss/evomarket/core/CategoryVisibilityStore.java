@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -74,8 +73,7 @@ public final class CategoryVisibilityStore {
     private void save() {
         try {
             Files.createDirectories(file.toAbsolutePath().getParent());
-            Files.write(file, hidden, StandardCharsets.UTF_8,
-                    StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+            AtomicFiles.writeLines(file, hidden);
         } catch (IOException exception) {
             System.err.println("[EvoMarket] Не удалось сохранить скрытые категории: " + exception.getMessage());
         }

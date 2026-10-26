@@ -25,18 +25,34 @@ if (-not $versionMatch.Success -or [int]$versionMatch.Groups[1].Value -lt 25) {
 }
 Write-Host "Java detected: $($versionMatch.Groups[1].Value)" -ForegroundColor Green
 
+# Bootstrap Gradle in the user's local cache instead of shipping wrapper files.
 $gradleVersion = '9.7.0'
-$cacheRoot = Join-Path $env:LOCALAPPDATA 'EvoMarketBuild'
+$archiveName = "gradle-$gradleVersion-bin.zip"
+$distributionUrl = "https://services.gradle.org/distributions/$archiveName"
+$expectedSha256 = '84fbba45c7f4c64abc77460e1c00f541e9f960e3c7ed2538f1ede19eacd873ae'
+$cacheRoot = Join-Path $env:LOCALAPPDATA 'EvoMarket\gradle'
 $gradleHome = Join-Path $cacheRoot "gradle-$gradleVersion"
 $gradleExe = Join-Path $gradleHome 'bin\gradle.bat'
 
 if (-not (Test-Path $gradleExe)) {
     New-Item -ItemType Directory -Force -Path $cacheRoot | Out-Null
-    $zipPath = Join-Path $cacheRoot "gradle-$gradleVersion-bin.zip"
-    $url = "https://services.gradle.org/distributions/gradle-$gradleVersion-bin.zip"
-    Write-Host "Downloading Gradle $gradleVersion (only needed for the first build)..." -ForegroundColor Cyan
-    Invoke-WebRequest -Uri $url -OutFile $zipPath
-    Expand-Archive -Path $zipPath -DestinationPath $cacheRoot -Force
+    $archivePath = Join-Path $env:TEMP $archiveName
+    Write-Host "Gradle $gradleVersion is not cached. Downloading it..." -ForegroundColor Cyan
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    Invoke-WebRequest -Uri $distributionUrl -OutFile $archivePath -UseBasicParsing
+
+    $actualSha256 = (Get-FileHash -Path $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actualSha256 -ne $expectedSha256) {
+        Remove-Item $archivePath -Force -ErrorAction SilentlyContinue
+        throw 'Gradle archive SHA-256 verification failed. The archive was not extracted.'
+    }
+
+    Expand-Archive -Path $archivePath -DestinationPath $cacheRoot -Force
+    Remove-Item $archivePath -Force
+}
+
+if (-not (Test-Path $gradleExe)) {
+    throw "Gradle executable not found after setup: $gradleExe"
 }
 
 Write-Host 'Downloading dependencies and building EvoMarket...' -ForegroundColor Cyan
@@ -46,7 +62,9 @@ if ($gradleExitCode -ne 0) {
     exit $gradleExitCode
 }
 
-$jarPath = Join-Path $PSScriptRoot 'build\libs\evomarket-0.1.18.jar'
+$versionLine = Get-Content (Join-Path $PSScriptRoot 'gradle.properties') | Where-Object { $_ -match '^mod_version=' }
+$modVersion = ($versionLine -split '=', 2)[1].Trim()
+$jarPath = Join-Path $PSScriptRoot "build\libs\evomarket-$modVersion.jar"
 if (-not (Test-Path $jarPath)) {
     Write-Host '[ERROR] Gradle finished, but the expected JAR was not found.' -ForegroundColor Red
     exit 2

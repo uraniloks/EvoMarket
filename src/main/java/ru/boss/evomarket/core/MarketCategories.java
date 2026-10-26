@@ -37,9 +37,9 @@ public final class MarketCategories {
             "(?iu)^\\s*(?:валк\\p{L}*|валют\\p{L}*)(?:\\s+(?:к|за\\s+лк|лк|курс|по\\s+курсу|\\d+(?:[.,]\\d+)?\\s*[кk]\\s*\\d+(?:[.,]\\d+)?).*)?$"
     );
     private static final Pattern CURRENCY_AFTER_LK_PREFIX = Pattern.compile(
-            "(?iu)^\\s*за\\s+(?:лк|личн\\p{L}*\\s+кабинет\\p{L}*)\\s+\\d+(?:[.,]\\d+)?\\s*(?:триллион(?:а|ов)?|трлн|т|t|б|b|в)(?![\\p{L}\\p{N}])"
+            "(?iu)^\\s*за\\s+(?:лк|lc|личн\\p{L}*\\s+кабинет\\p{L}*)\\s+\\d+(?:[.,]\\d+)?\\s*(?:триллион(?:а|ов)?|трлн|т|t|б|b|в)(?![\\p{L}\\p{N}])"
     );
-    private static final Pattern LK_ONLY_ITEM = Pattern.compile("(?iu)^\\s*(?:за\\s+)?лк(?:\\s+не)?\\s*$");
+    private static final Pattern LK_ONLY_ITEM = Pattern.compile("(?iu)^\\s*(?:за\\s+)?(?:лк|lc)(?:\\s+не)?\\s*$");
     // Natural chat phrases like "очень много валки по курсу 1к500м" are currency listings.
     private static final Pattern CURRENCY_BULK_ALIAS = Pattern.compile(
             "(?iu)^\\s*(?:(?:очень|реально|крайне)\\s+)?много\\s+(?:валк|валют)\\p{L}*(?:\\s|$).*$"
@@ -62,10 +62,10 @@ public final class MarketCategories {
             "(?iu)(?<![\\p{L}\\p{N}])\\d+(?:[.,]\\d+)?\\s*(?:триллион(?:а|ов)?|трлн|т|t|б|b|в)(?![\\p{L}])"
     );
     private static final Pattern LK_MARKER = Pattern.compile(
-            "(?iu)(?<![\\p{L}])(?:лк|личн\\p{L}*\\s+кабинет\\p{L}*)(?![\\p{L}\\p{N}])"
+            "(?iu)(?<![\\p{L}])(?:лк|lc|личн\\p{L}*\\s+кабинет\\p{L}*)(?![\\p{L}\\p{N}])"
     );
     private static final Pattern GAME_CURRENCY_PAYMENT_WORD = Pattern.compile(
-            "(?iu)(?:\\b(?:за|по|обмен\\s+(?:на|за)|оплата\\s*:?)\\s*(?:игров\\p{L}*\\s+|внутриигров\\p{L}*\\s+)?валют\\p{L}*|(?:/|\\bили\\s+)\\s*(?:игров\\p{L}*\\s+|внутриигров\\p{L}*\\s+)?валют\\p{L}*)"
+            "(?iuU)(?:\\b(?:за|по|обмен\\s+(?:на|за)|оплата\\s*:?)\\s*(?:игров\\p{L}*\\s+|внутриигров\\p{L}*\\s+)?валют\\p{L}*|(?:/|\\bили\\s+)\\s*(?:игров\\p{L}*\\s+|внутриигров\\p{L}*\\s+)?валют\\p{L}*)"
     );
     private static final Pattern GAME_CURRENCY_AMOUNT_PAYMENT = Pattern.compile(
             "(?iu)(?<![\\p{L}\\p{N}])за\\s*\\d+(?:[.,]\\d+)?\\s*(?:триллион(?:а|ов)?|трлн|т|t|б|b|в)(?![\\p{L}])"
@@ -379,7 +379,8 @@ public final class MarketCategories {
         boolean lk = legacyCurrencyForLk || LK_MARKER.matcher(text).find()
                 || COMPACT_LK_CURRENCY_RATE.matcher(text).find();
         boolean gameCurrency = GAME_CURRENCY_PAYMENT_WORD.matcher(text).find()
-                || (!lk && GAME_CURRENCY_AMOUNT_PAYMENT.matcher(text).find());
+                || (!lk && (GAME_CURRENCY_AMOUNT_PAYMENT.matcher(text).find()
+                || (!isCurrencyItem(itemValue) && CURRENCY_AMOUNT.matcher(text).find())));
         if (lk && gameCurrency) return "ЛК / игровая валюта";
         if (lk) return "ЛК";
         if (gameCurrency) return "Игровая валюта";
@@ -391,7 +392,8 @@ public final class MarketCategories {
         // Re-evaluate the original message for old history entries as well. The offer
         // parser may previously have stored an adverb like "фастом" as the item; the
         // source message is the reliable context for recognizing a currency lot.
-        return isCurrencyOffer(rawText);
+        return (isUnknown(item) || item.matches("(?iu)^(?:фастом|фастиком|оптом)$"))
+                && isCurrencyOffer(rawText);
     }
 
     private static boolean isCurrencyItem(String item) {
@@ -493,8 +495,8 @@ public final class MarketCategories {
         value = value.replaceFirst("(?iu)^\\s*(?:(?:фастом|фастиком|fastom|fastikom|оптом)\\s+)+", "");
         value = value.replaceAll("(?iu)\\s*\\((?:не\\s+)?передаваем\\p{L}*\\)", "");
         value = value.replaceAll("(?iu)\\s+(?:не\\s+)?передаваем\\p{L}*\\s*$", "");
-        value = value.replaceFirst("(?iu)^\\s*за\\s+(?:лк|личн\\p{L}*\\s+кабинет\\p{L}*)(?:\\s+|$)", "");
-        value = value.replaceAll("(?iu)\\s+(?:за\\s+(?:лк|личн\\p{L}*\\s+кабинет\\p{L}*)|подробност\\p{L}*|если\\s+ч[ее]|больше\\s*[-—]?\\s*больше)\\s*[.!?]*$", "");
+        value = value.replaceFirst("(?iu)^\\s*за\\s+(?:лк|lc|личн\\p{L}*\\s+кабинет\\p{L}*)(?:\\s+|$)", "");
+        value = value.replaceAll("(?iu)\\s+(?:за\\s+(?:лк|lc|личн\\p{L}*\\s+кабинет\\p{L}*)|подробност\\p{L}*|если\\s+ч[ее]|больше\\s*[-—]?\\s*больше)\\s*[.!?]*$", "");
         value = value.replaceAll("(?iu)\\s+не\\s*$", "");
         value = value.replaceAll("[\\s.!?,;:()\\[\\]{}]+$", "");
         return value.replaceAll("\\s+", " ").trim();
@@ -517,7 +519,7 @@ public final class MarketCategories {
         String value = item.trim();
         return FILLER_ITEM.matcher(value).matches()
                 || value.matches("(?iu)^(?:подробност\\p{L}*|если\\s+ч[её]|больше\\s*[-—]?\\s*больше|или\\s+обменяю|можно)$")
-                || value.matches("(?iu)^кто\\s+(?:за|по)\\s+(?:лк|личн\\p{L}*\\s+кабинет\\p{L}*)\\s+много[.!?]*$")
+                || value.matches("(?iu)^кто\\s+(?:за|по)\\s+(?:лк|lc|личн\\p{L}*\\s+кабинет\\p{L}*)\\s+много[.!?]*$")
                 || value.matches("(?iu)^(?:мешки?|мешка|мешок|мешочек|мешочки)\\s+с[.!?]*$");
     }
 
@@ -525,6 +527,9 @@ public final class MarketCategories {
     public static String normalizeHiddenCategory(String category) {
         if (category == null || category.isBlank()) return null;
         String value = normalizeForMatching(category);
+        for (String known : ORDER) {
+            if (known.equalsIgnoreCase(value)) return known;
+        }
         if (value.isBlank() || isNonItemCategoryLabel(value)) return null;
 
         // LC/payment markers are metadata, never item categories. Keep the user's
@@ -546,6 +551,7 @@ public final class MarketCategories {
         if (category == null || category.isBlank()) return true;
         String value = normalizeForMatching(category);
         if (value.isBlank()) return true;
+        if (LK_ONLY_ITEM.matcher(value).matches() && !LEGENDARY_LK_CODE.matcher(value).matches()) return true;
         // If the phrase already identifies a known tradable item, it isn't a sentence fragment
         // (for example "к опыта" is a server alias for regular experience).
         if (canonicalNamedItem(value) != null) return false;
@@ -555,7 +561,6 @@ public final class MarketCategories {
                 || CURRENCY_BULK_ALIAS.matcher(value).matches() || CURRENCY_PREFIX.matcher(value).find()
                 || INGAME_CURRENCY.matcher(value).find()) return false;
         if (NON_ITEM_CATEGORY.matcher(value).matches()) return true;
-        if (LK_ONLY_ITEM.matcher(value).matches() && !LEGENDARY_LK_CODE.matcher(value).matches()) return true;
         if (DANGLING_CATEGORY_WORD.matcher(value).matches()) return true;
         return value.matches("(?iu)^(?:к\\s+адского|к\\s+опыт\\p{L}*|опыт\\s*-|колб\\p{L}*\\s+для|мешк\\p{L}*\\s+с|дерево\\s+штук|валк\\p{L}*\\s+за\\s+лк|за\\s+лк|очень\\s+много)$");
     }

@@ -1,6 +1,7 @@
 package ru.boss.evomarket.core;
 
 import java.util.regex.Matcher;
+import java.math.BigInteger;
 import java.util.regex.Pattern;
 
 /** Small semantic-version comparator for numeric versions and prerelease labels. */
@@ -23,9 +24,9 @@ public final class VersionOrder {
         String[] rightParts = rm.group(1).split("\\.");
         int max = Math.max(leftParts.length, rightParts.length);
         for (int i = 0; i < max; i++) {
-            long l = i < leftParts.length ? parseLong(leftParts[i]) : 0;
-            long r = i < rightParts.length ? parseLong(rightParts[i]) : 0;
-            if (l != r) return Long.compare(l, r);
+            BigInteger l = i < leftParts.length ? new BigInteger(leftParts[i]) : BigInteger.ZERO;
+            BigInteger r = i < rightParts.length ? new BigInteger(rightParts[i]) : BigInteger.ZERO;
+            if (!l.equals(r)) return l.compareTo(r);
         }
 
         String leftPre = lm.group(2);
@@ -46,7 +47,7 @@ public final class VersionOrder {
             boolean an = a[i].matches("\\d+");
             boolean bn = b[i].matches("\\d+");
             if (an && bn) {
-                int c = Long.compare(parseLong(a[i]), parseLong(b[i]));
+                int c = new BigInteger(a[i]).compareTo(new BigInteger(b[i]));
                 if (c != 0) return c;
             } else if (an != bn) {
                 return an ? -1 : 1;
@@ -58,8 +59,4 @@ public final class VersionOrder {
         return 0;
     }
 
-    private static long parseLong(String value) {
-        try { return Long.parseLong(value); }
-        catch (NumberFormatException ignored) { return 0; }
-    }
 }

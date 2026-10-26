@@ -83,13 +83,8 @@ public final class MarketScanner {
             }
 
             parsed.addAndGet(offers.size());
-            int added = 0;
-            for (MarketOffer offer : offers) {
-                if (store.add(offer)) {
-                    saved.incrementAndGet();
-                    added++;
-                }
-            }
+            int added = store.addAll(offers);
+            saved.addAndGet(added);
             lastResult = added > 0
                     ? "добавлено объявлений: " + added + " из " + offers.size()
                     : "повтор объявления пропущен — оно уже есть в истории";

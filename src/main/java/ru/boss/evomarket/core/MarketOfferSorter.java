@@ -21,10 +21,10 @@ public final class MarketOfferSorter {
         offers.sort((left, right) -> {
             int groupCompare = Integer.compare(paymentGroup(left.paymentLabel()), paymentGroup(right.paymentLabel()));
             if (groupCompare != 0) return groupCompare;
-            if (left.price() == null && right.price() != null) return 1;
-            if (left.price() != null && right.price() == null) return -1;
-            if (left.price() != null && right.price() != null) {
-                int priceCompare = left.price().compareTo(right.price());
+            if (left.comparisonPrice() == null && right.comparisonPrice() != null) return 1;
+            if (left.comparisonPrice() != null && right.comparisonPrice() == null) return -1;
+            if (left.comparisonPrice() != null && right.comparisonPrice() != null) {
+                int priceCompare = left.comparisonPrice().compareTo(right.comparisonPrice());
                 if (priceCompare != 0) return ascending ? priceCompare : -priceCompare;
             }
             return right.timestamp().compareTo(left.timestamp());

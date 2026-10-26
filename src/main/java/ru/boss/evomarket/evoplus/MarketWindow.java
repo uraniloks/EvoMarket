@@ -15,6 +15,7 @@ import ru.dargen.evoplus.api.ui.Ui;
 import ru.dargen.evoplus.api.ui.UiButton;
 import ru.dargen.evoplus.api.ui.UiContainer;
 import ru.dargen.evoplus.api.ui.UiText;
+import ru.dargen.evoplus.api.ui.UiInput;
 import ru.dargen.evoplus.api.ui.UiWindow;
 
 import java.math.BigDecimal;
@@ -36,14 +37,14 @@ final class MarketWindow {
             "(?iu)(?<![\\p{L}\\p{N}])(\\d+(?:[.,]\\d+)?)\\s*[кk]\\s*(\\d+(?:[.,]\\d+)?)(?![\\p{L}\\p{N}])(?=\\s+(?:(?:игров\\p{L}*|внутриигров\\p{L}*)\\s+)?валют\\p{L}*)"
     );
     private static final Pattern CURRENCY_LK_BUNDLE = Pattern.compile(
-            "(?iu)(?<![\\p{L}\\p{N}])(\\d+(?:[.,]\\d+)?)\\s*([тtбbв])\\s*,?\\s*по\\s*(\\d+(?:[.,]\\d+)?)\\s*([тtбbв])\\s*за\\s*(\\d+(?:[.,]\\d+)?)\\s*(?:лк|личн\\p{L}*\\s+кабинет\\p{L}*)(?![\\p{L}])"
+            "(?iu)(?<![\\p{L}\\p{N}])(\\d+(?:[.,]\\d+)?)\\s*([тtбbв])\\s*,?\\s*по\\s*(\\d+(?:[.,]\\d+)?)\\s*([тtбbв])\\s*за\\s*(\\d+(?:[.,]\\d+)?)\\s*(?:лк|lc|личн\\p{L}*\\s+кабинет\\p{L}*)(?![\\p{L}])"
     );
     private static final Pattern CURRENCY_LK_SINGLE = Pattern.compile(
-            "(?iu)(?<![\\p{L}\\p{N}])(\\d+(?:[.,]\\d+)?)\\s*([тtбbв])\\s*(?:,?\\s*)за\\s*(\\d+(?:[.,]\\d+)?)\\s*(?:лк|личн\\p{L}*\\s+кабинет\\p{L}*)(?![\\p{L}])"
+            "(?iu)(?<![\\p{L}\\p{N}])(\\d+(?:[.,]\\d+)?)\\s*([тtбbв])\\s*(?:,?\\s*)за\\s*(\\d+(?:[.,]\\d+)?)\\s*(?:лк|lc|личн\\p{L}*\\s+кабинет\\p{L}*)(?![\\p{L}])"
     );
     private static final long AUTO_REFRESH_MS = 600;
-    private static final int BUTTONS_PER_ROW = 4;
-    private static final int MAX_RENDERED_OFFERS = 150;
+    private static final int PAGE_SIZE = 20;
+    
 
     private static WindowView activeView;
     private static boolean tickHookRegistered;
@@ -53,11 +54,12 @@ final class MarketWindow {
 
     private MarketWindow() {}
 
+    static boolean isOpen() { return activeView != null && activeView.window.isOpen(); }
+
     static void open(Addon addon, MarketStore store, CategoryVisibilityStore categoryVisibility,
                      SellerListStore ignoredSellers, SellerListStore favoriteSellers, MarketScanner scanner) {
         if (activeView != null && activeView.window.isOpen()) {
-            activeView.window.open();
-            activeView.refreshAll();
+            activeView.requestRefresh();
             return;
         }
 
@@ -71,7 +73,7 @@ final class MarketWindow {
         });
 
         window.getFooter().add(
-                ui.button("Обновить", view::refreshAll),
+                ui.button("Обновить", view::requestRefresh),
                 ui.button("Закрыть", window::close)
         );
         view.build();
@@ -84,7 +86,15 @@ final class MarketWindow {
         tickHookRegistered = true;
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             WindowView view = activeView;
-            if (view == null || !view.window.isOpen()) return;
+            if (view == null) return;
+            if (!view.window.isOpen()) {
+                if (activeView == view) activeView = null;
+                return;
+            }
+            if (view.dirty || view.renderedWidth != view.contentWidth()) {
+                view.refreshAll();
+                return;
+            }
 
             long now = System.currentTimeMillis();
             if (now - lastAutoRefresh < AUTO_REFRESH_MS) return;
@@ -115,8 +125,30 @@ final class MarketWindow {
         private ActionFilter actionFilter = ActionFilter.ALL;
         private MarketSortMode sortMode = MarketSortMode.NEWEST;
         private String selectedCategory = MarketCategories.ALL;
-        private int renderedSize = -1;
-        private String renderedTopKey = "";
+        private long renderedRevision = -1;
+        private double renderedWidth = -1;
+        private boolean dirty;
+        private int page;
+        private String query = "";
+        private UiInput search;
+        private UiContainer pagination;
+        private List<MarketOffer> snapshot = List.of();
+        private UiContainer navigationRow;
+        private double navigationUsed;
+
+        private double contentWidth() { return Math.max(80, window.getBodyWidth() - 28); }
+        private void requestRefresh() { dirty = true; }
+        private void resetPage() { page = 0; requestRefresh(); }
+        private void addNavigation(UiButton button) {
+            double width = Math.min(button.getWidth(), contentWidth());
+            if (navigationRow == null || navigationUsed + width > contentWidth()) {
+                navigationRow = ui.row().spacing(6).height(29).fillWidth();
+                categoryNavigationPanel.add(navigationRow);
+                navigationUsed = 0;
+            }
+            navigationRow.add(button.width(width));
+            navigationUsed += width + 6;
+        }
 
         private WindowView(MarketStore store, CategoryVisibilityStore categoryVisibility,
                            SellerListStore ignoredSellers, SellerListStore favoriteSellers,
@@ -136,38 +168,46 @@ final class MarketWindow {
 
             body.add(ui.text("EvoMarket", TextStyle.TITLE));
             countText = ui.text("", TextStyle.SECONDARY)
-                    .maxWidth(Math.max(180, window.getBodyWidth() - 28), true);
+                    .maxWidth(contentWidth(), true);
             body.add(countText);
             scannerStatusText = ui.text("", TextStyle.SECONDARY)
-                    .maxWidth(Math.max(180, window.getBodyWidth() - 28), true);
+                    .maxWidth(contentWidth(), true);
             body.add(scannerStatusText);
             body.add(ui.spacer(1, 5));
             body.add(ui.divider());
             body.add(ui.spacer(1, 6));
 
-            actionTabs = ui.row().spacing(5)
-                    .width(Math.max(520, window.getBodyWidth() - 20)).height(31);
+            actionTabs = ui.column().spacing(4).fillWidth();
             body.add(actionTabs);
             // Visually separate primary navigation from sorting controls.
             body.add(ui.spacer(1, 4));
             body.add(ui.divider());
             body.add(ui.spacer(1, 6));
 
-            sortBar = ui.row().spacing(5)
-                    .width(Math.max(440, window.getBodyWidth() - 20)).height(30);
+            sortBar = ui.row().spacing(5).fillWidth().height(30);
             body.add(sortBar);
             sortHintText = ui.text("", TextStyle.SECONDARY)
-                    .maxWidth(Math.max(180, window.getBodyWidth() - 28), true);
+                    .maxWidth(contentWidth(), true);
             body.add(sortHintText);
             body.add(ui.spacer(1, 8));
 
+            search = ui.input(query, "Поиск: предмет, игрок, текст сообщения")
+                    .maxLength(120).fillWidth().onChange(value -> {
+                        query = value.trim().toLowerCase(Locale.ROOT);
+                        resetPage();
+                    });
+            body.add(search);
+            body.add(ui.button("Сбросить поиск", () -> {
+                search.value("");
+                query = "";
+                resetPage();
+            }).width(120).height(24));
             sectionTitle = ui.text("Категории", TextStyle.TITLE);
             body.add(sectionTitle);
             body.add(ui.spacer(1, 3));
             // Static navigation is deliberately separate from dynamically detected item categories.
             // This keeps "Все категории" and "Скрытые" from mixing with generated category names.
-            categoryNavigationPanel = ui.row().spacing(6)
-                    .width(Math.max(420, window.getBodyWidth() - 20)).height(29);
+            categoryNavigationPanel = ui.column().spacing(3).fillWidth();
             body.add(categoryNavigationPanel);
             // Keep navigation tabs visually distinct from generated category buttons.
             body.add(ui.spacer(1, 5));
@@ -181,6 +221,8 @@ final class MarketWindow {
             offersTitle = ui.text("Объявления", TextStyle.TITLE);
             body.add(offersTitle);
             body.add(ui.spacer(1, 5));
+            pagination = ui.row().spacing(6).height(28).fillWidth();
+            body.add(pagination);
             offersList = ui.column().spacing(7).fillWidth();
             body.add(offersList);
 
@@ -190,32 +232,30 @@ final class MarketWindow {
         private void chooseAction(ActionFilter next) {
             actionFilter = next;
             selectedCategory = MarketCategories.ALL;
-            refreshAll();
+            resetPage();
         }
 
         private void chooseCategory(String next) {
             selectedCategory = next;
-            renderCategories();
-            renderOffers();
+            resetPage();
         }
 
         private void chooseSort(MarketSortMode next) {
             sortMode = next;
-            renderSortBar();
-            renderOffers();
+            resetPage();
         }
 
         private void hideCategory(String category) {
             if (categoryVisibility.hide(category)) {
                 if (selectedCategory.equals(category)) selectedCategory = MarketCategories.ALL;
-                refreshAll();
+                resetPage();
             }
         }
 
         private void restoreCategory(String category) {
             if (categoryVisibility.restore(category)) {
                 selectedCategory = HIDDEN_CATEGORIES_TAB;
-                refreshAll();
+                resetPage();
             }
         }
 
@@ -223,37 +263,42 @@ final class MarketWindow {
             if (seller == null || seller.isBlank()) return;
             if (favoriteSellers.contains(seller)) favoriteSellers.remove(seller);
             else favoriteSellers.add(seller);
-            refreshAll();
+            resetPage();
         }
 
         private void ignoreSeller(String seller) {
             if (seller == null || seller.isBlank()) return;
             ignoredSellers.add(seller);
             favoriteSellers.remove(seller);
-            refreshAll();
+            resetPage();
         }
 
         private void restoreIgnoredSeller(String seller) {
-            if (ignoredSellers.remove(seller)) refreshAll();
+            if (ignoredSellers.remove(seller)) resetPage();
         }
 
         private void removeFavoriteSeller(String seller) {
-            if (favoriteSellers.remove(seller)) refreshAll();
+            if (favoriteSellers.remove(seller)) resetPage();
         }
 
         private void refreshAll() {
+            dirty = false;
+            renderedRevision = store.revision();
+            snapshot = store.latest(500);
+            renderedWidth = contentWidth();
+            countText.maxWidth(contentWidth(), true);
+            scannerStatusText.maxWidth(contentWidth(), true);
+            sortHintText.maxWidth(contentWidth(), true);
             refreshCount();
             renderActionTabs();
             renderSortBar();
             renderCategories();
             renderOffers();
-            renderedSize = store.size();
-            renderedTopKey = topOfferKey();
+
         }
 
         private void refreshIfChanged() {
-            String topKey = topOfferKey();
-            if (renderedSize != store.size() || !renderedTopKey.equals(topKey)) refreshAll();
+            if (renderedRevision != store.revision()) refreshAll();
             else refreshCount();
         }
 
@@ -268,11 +313,20 @@ final class MarketWindow {
 
         private void renderActionTabs() {
             actionTabs.clear();
-            actionTabs.add(actionButton(ActionFilter.ALL, "Все"));
-            actionTabs.add(actionButton(ActionFilter.BUY, "Покупают"));
-            actionTabs.add(actionButton(ActionFilter.SELL, "Продают"));
-            actionTabs.add(actionButton(ActionFilter.FAVORITES, "★ Избранные"));
-            actionTabs.add(actionButton(ActionFilter.IGNORED, "Игнор"));
+            UiContainer row = null;
+            double used = 0;
+            String[] labels = {"Все", "Покупают", "Продают", "★ Избранные", "Игнор"};
+            for (ActionFilter filter : ActionFilter.values()) {
+                UiButton button = actionButton(filter, labels[filter.ordinal()]);
+                double width = Math.min(button.getWidth(), contentWidth());
+                if (row == null || used + width > contentWidth()) {
+                    row = ui.row().spacing(5).height(28).fillWidth();
+                    actionTabs.add(row);
+                    used = 0;
+                }
+                row.add(button.width(width));
+                used += width + 5;
+            }
         }
 
         private UiButton actionButton(ActionFilter value, String label) {
@@ -289,40 +343,42 @@ final class MarketWindow {
         private void renderSortBar() {
             sortBar.clear();
             sortBar.add(ui.button(sortMode == MarketSortMode.NEWEST ? "§a✓ Новые" : "Новые",
-                    () -> chooseSort(MarketSortMode.NEWEST)).width(86).height(26));
+                    () -> chooseSort(MarketSortMode.NEWEST)).width((contentWidth() - 10) / 3).height(26));
             sortBar.add(ui.button(sortMode == MarketSortMode.PRICE_ASC ? "§a✓ Цена ↑" : "Цена ↑",
-                    () -> chooseSort(MarketSortMode.PRICE_ASC)).width(92).height(26));
+                    () -> chooseSort(MarketSortMode.PRICE_ASC)).width((contentWidth() - 10) / 3).height(26));
             sortBar.add(ui.button(sortMode == MarketSortMode.PRICE_DESC ? "§a✓ Цена ↓" : "Цена ↓",
-                    () -> chooseSort(MarketSortMode.PRICE_DESC)).width(92).height(26));
+                    () -> chooseSort(MarketSortMode.PRICE_DESC)).width((contentWidth() - 10) / 3).height(26));
             sortHintText.text(sortMode == MarketSortMode.NEWEST ? "Сортировка по времени: сначала новые объявления."
-                    : "Цены группируются отдельно по способу расчёта; ЛК и игровая валюта между собой не сравниваются.");
+                    : "Цена указанного лота; ЛК и игровая валюта отдельно. Курсы и смешанная оплата — в конце группы.");
         }
 
         private void renderCategories() {
             categoryNavigationPanel.clear();
+            navigationRow = null;
+            navigationUsed = 0;
             categoryPanel.clear();
 
             if (actionFilter == ActionFilter.IGNORED) {
                 sectionTitle.text("Игнор-лист игроков");
                 offersTitle.text("Скрытые предложения");
-                categoryNavigationPanel.add(ui.button("← К рынку", () -> chooseAction(ActionFilter.ALL)).width(105).height(26));
+                addNavigation(ui.button("← К рынку", () -> chooseAction(ActionFilter.ALL)).width(105).height(26));
                 List<String> ignored = ignoredSellers.names();
                 if (!ignored.isEmpty()) {
-                    categoryNavigationPanel.add(ui.button("§cОчистить всё", () -> {
+                    addNavigation(ui.button("§cОчистить всё", () -> {
                         ignoredSellers.clear();
-                        refreshAll();
+                        resetPage();
                     }).width(100).height(26));
                 }
                 if (ignored.isEmpty()) {
                     categoryPanel.add(ui.text("Игнор-лист пуст. Нажми «Игнорировать игрока» в карточке объявления, чтобы скрыть его предложения.", TextStyle.SECONDARY)
-                            .maxWidth(Math.max(180, window.getBodyWidth() - 28), true));
+                            .maxWidth(contentWidth(), true));
                 } else {
                     // Keep the action directly beside the player name, like category chips.
                     // The bulk action lives in the navigation row to avoid creating an extra line.
                     for (String seller : ignored) {
                         UiContainer row = ui.row().spacing(4).height(27);
-                        row.add(ui.text(seller, TextStyle.BODY)
-                                .maxWidth(Math.max(180, window.getBodyWidth() - 150), true));
+                        row.add(ui.text(seller, TextStyle.BODY).tooltip(seller)
+                                .maxWidth(Math.max(40, contentWidth() - 90), false));
                         row.add(ui.button("§c×", () -> restoreIgnoredSeller(seller)).width(22).height(25));
                         categoryPanel.add(row);
                     }
@@ -333,17 +389,17 @@ final class MarketWindow {
             if (actionFilter == ActionFilter.FAVORITES) {
                 sectionTitle.text("Избранные продавцы");
                 offersTitle.text("Объявления избранных продавцов");
-                categoryNavigationPanel.add(ui.button("← К рынку", () -> chooseAction(ActionFilter.ALL)).width(105).height(26));
+                addNavigation(ui.button("← К рынку", () -> chooseAction(ActionFilter.ALL)).width(105).height(26));
                 List<String> favorites = favoriteSellers.names();
                 if (favorites.isEmpty()) {
                     categoryPanel.add(ui.text("Пока нет избранных продавцов. Добавь игрока кнопкой «☆ В избранное» в любой карточке.", TextStyle.SECONDARY)
-                            .maxWidth(Math.max(180, window.getBodyWidth() - 28), true));
+                            .maxWidth(contentWidth(), true));
                 } else {
                     // Compact inline remove control: do not reserve a large blank label column.
                     for (String seller : favorites) {
                         UiContainer row = ui.row().spacing(4).height(27);
-                        row.add(ui.text("★ " + seller, TextStyle.BODY)
-                                .maxWidth(Math.max(180, window.getBodyWidth() - 150), true));
+                        row.add(ui.text("★ " + seller, TextStyle.BODY).tooltip(seller)
+                                .maxWidth(Math.max(40, contentWidth() - 90), false));
                         row.add(ui.button("§c×", () -> removeFavoriteSeller(seller)).width(22).height(25));
                         categoryPanel.add(row);
                     }
@@ -363,17 +419,17 @@ final class MarketWindow {
                     .toList();
 
             // Fixed navigation row: these two controls never become auto-generated categories.
-            categoryNavigationPanel.add(ui.button(
+            addNavigation(ui.button(
                     MarketCategories.ALL.equals(selectedCategory) ? "§a✓ Все категории" : "Все категории",
                     () -> chooseCategory(MarketCategories.ALL)).width(142).height(26));
-            categoryNavigationPanel.add(ui.button(
+            addNavigation(ui.button(
                     hiddenTab ? "§6✓ Скрытые (" + hidden.size() + ")" : "Скрытые (" + hidden.size() + ")",
                     () -> chooseCategory(HIDDEN_CATEGORIES_TAB)).width(150).height(26));
             if (hiddenTab && !hidden.isEmpty()) {
-                categoryNavigationPanel.add(ui.button("§cВернуть все", () -> {
+                addNavigation(ui.button("§cВернуть все", () -> {
                     categoryVisibility.restoreAll();
                     selectedCategory = MarketCategories.ALL;
-                    refreshAll();
+                    resetPage();
                 }).width(96).height(26));
             }
 
@@ -383,7 +439,7 @@ final class MarketWindow {
                 categoryPanel.add(ui.text("Скрытые категории", TextStyle.TITLE));
                 categoryPanel.add(ui.spacer(1, 3));
                 categoryPanel.add(ui.text("Нажми «Вернуть», чтобы снова показывать категорию в списке рынка. История объявлений не удаляется.", TextStyle.SECONDARY)
-                        .maxWidth(Math.max(180, window.getBodyWidth() - 28), true));
+                        .maxWidth(contentWidth(), true));
                 if (hidden.isEmpty()) {
                     categoryPanel.add(ui.spacer(1, 5));
                     categoryPanel.add(ui.text("Список пуст.", TextStyle.SECONDARY));
@@ -395,9 +451,9 @@ final class MarketWindow {
                 categoryPanel.add(ui.spacer(1, 4));
                 for (String category : hidden) {
                     UiContainer row = ui.row().spacing(4).height(27);
-                    row.add(ui.text(category, TextStyle.BODY)
-                            .maxWidth(Math.max(180, window.getBodyWidth() - 150), true));
-                    row.add(ui.button("§c×", () -> restoreCategory(category)).width(22).height(25));
+                    row.add(ui.text(category, TextStyle.BODY).tooltip(category)
+                            .maxWidth(Math.max(40, contentWidth() - 90), false));
+                    row.add(ui.button("Вернуть", () -> restoreCategory(category)).width(65).height(25));
                     categoryPanel.add(row);
                 }
                 return;
@@ -409,20 +465,23 @@ final class MarketWindow {
             }
             if (visibleCategories.isEmpty()) {
                 categoryPanel.add(ui.text("Категорий пока нет. Они появятся здесь, когда сканер распознает торговые предложения.", TextStyle.SECONDARY)
-                        .maxWidth(Math.max(180, window.getBodyWidth() - 28), true));
+                        .maxWidth(contentWidth(), true));
                 return;
             }
 
-            for (int start = 0; start < visibleCategories.size(); start += BUTTONS_PER_ROW) {
+            int columns = Math.max(1, Math.min(4, (int) ((contentWidth() + 6) / 164)));
+            double cellWidth = (contentWidth() - (columns - 1) * 6) / columns;
+            for (int start = 0; start < visibleCategories.size(); start += columns) {
                 UiContainer row = ui.row().spacing(6)
-                        .width(Math.max(520, window.getBodyWidth() - 20)).height(29);
-                int end = Math.min(start + BUTTONS_PER_ROW, visibleCategories.size());
+                        .width(contentWidth()).height(29);
+                int end = Math.min(start + columns, visibleCategories.size());
                 for (int i = start; i < end; i++) {
                     String category = visibleCategories.get(i);
                     String label = selectedCategory.equals(category) ? "§a✓ " + category : category;
-                    UiContainer cell = ui.row().spacing(2).width(158).height(27);
-                    cell.add(ui.button(label, () -> chooseCategory(category)).width(132).height(25));
-                    cell.add(ui.button("×", () -> hideCategory(category)).width(22).height(25));
+                    UiContainer cell = ui.row().spacing(2).width(cellWidth).height(27);
+                    cell.add(ui.button(shortLabel(label, cellWidth - 30), () -> chooseCategory(category))
+                            .tooltip(category).width(cellWidth - 30).height(25));
+                    cell.add(ui.button("×", () -> hideCategory(category)).tooltip("Скрыть категорию: " + category).width(26).height(25));
                     row.add(cell);
                 }
                 categoryPanel.add(row);
@@ -432,7 +491,7 @@ final class MarketWindow {
 
         private List<MarketOffer> scopedOffers() {
             List<MarketOffer> result = new ArrayList<>();
-            for (MarketOffer offer : store.latest(500)) {
+            for (MarketOffer offer : snapshot) {
                 if (MarketCategories.isFillerItem(offer.item())) continue;
                 String seller = offer.seller();
                 if (seller != null && ignoredSellers.contains(seller)) continue;
@@ -440,6 +499,8 @@ final class MarketWindow {
                 if (actionFilter == ActionFilter.SELL && offer.action() != TradeAction.SELL) continue;
                 if (actionFilter == ActionFilter.FAVORITES && (seller == null || !favoriteSellers.contains(seller))) continue;
                 if (actionFilter == ActionFilter.IGNORED) continue;
+                if (!query.isEmpty() && !(offer.item() + " " + offer.displayItem() + " "
+                        + seller + " " + offer.rawText()).toLowerCase(Locale.ROOT).contains(query)) continue;
                 result.add(offer);
             }
             return result;
@@ -447,14 +508,15 @@ final class MarketWindow {
 
         private void renderOffers() {
             offersList.clear();
+            pagination.clear();
             if (actionFilter == ActionFilter.IGNORED) {
                 offersList.add(ui.text("Предложения игроков из игнор-листа скрыты только в EvoMarket. Обычный игровой чат модификация не меняет.", TextStyle.SECONDARY)
-                        .maxWidth(Math.max(180, window.getBodyWidth() - 28), true));
+                        .maxWidth(contentWidth(), true));
                 return;
             }
             if (HIDDEN_CATEGORIES_TAB.equals(selectedCategory)) {
                 offersList.add(ui.text("Здесь можно восстановить категории. История объявлений при скрытии не удаляется.", TextStyle.SECONDARY)
-                        .maxWidth(Math.max(180, window.getBodyWidth() - 28), true));
+                        .maxWidth(contentWidth(), true));
                 return;
             }
 
@@ -464,10 +526,15 @@ final class MarketWindow {
             }
             List<MarketOffer> sortedOffers = MarketOfferSorter.sorted(offers, sortMode);
 
+            int pages = Math.max(1, (sortedOffers.size() + PAGE_SIZE - 1) / PAGE_SIZE);
+            page = Math.max(0, Math.min(page, pages - 1));
+            offersTitle.text("Объявления: " + sortedOffers.size());
+            if (page > 0) pagination.add(ui.button("←", () -> { page--; requestRefresh(); }).width(30).height(24));
+            pagination.add(ui.text((page + 1) + " / " + pages, TextStyle.SECONDARY));
+            if (page + 1 < pages) pagination.add(ui.button("→", () -> { page++; requestRefresh(); }).width(30).height(24));
             int shown = 0;
-            double bodyWidth = Math.max(180.0, window.getBodyWidth() - 28.0);
-            for (MarketOffer offer : sortedOffers) {
-                if (shown >= MAX_RENDERED_OFFERS) break;
+            double bodyWidth = Math.max(40, contentWidth() - 20);
+            for (MarketOffer offer : sortedOffers.subList(page * PAGE_SIZE, Math.min(sortedOffers.size(), (page + 1) * PAGE_SIZE))) {
                 String actionLabel = offer.action() == TradeAction.BUY ? "ПОКУПАЮТ" : "ПРОДАЮТ";
                 String color = offer.action() == TradeAction.BUY ? "§a" : "§c";
                 String price = formatOfferPrice(offer);
@@ -475,7 +542,7 @@ final class MarketWindow {
 
                 UiContainer card = ui.card(false).padding(10, 8).spacing(4).fillWidth();
                 card.add(ui.text(color + actionLabel + " §8· " + time, TextStyle.SECONDARY));
-                card.add(ui.text(offer.displayItem(), TextStyle.TITLE).maxWidth(bodyWidth, true));
+                card.add(ui.text(offer.item(), TextStyle.TITLE).maxWidth(bodyWidth, true));
 
                 String paymentLabel = offer.paymentLabel();
                 if (paymentLabel != null && !paymentLabel.isBlank()) {
@@ -487,6 +554,7 @@ final class MarketWindow {
                 if (!offer.categories().isEmpty()) card.add(ui.text(categoryLabel, TextStyle.SECONDARY).maxWidth(bodyWidth, true));
 
                 String sourceMessage = chatMessage(offer.rawText());
+                if (sourceMessage.length() > 260) sourceMessage = sourceMessage.substring(0, 257) + "…";
                 if (!sourceMessage.isBlank()) {
                     card.add(ui.text("Сообщение: " + sourceMessage, TextStyle.SECONDARY).maxWidth(bodyWidth, true));
                 }
@@ -496,7 +564,7 @@ final class MarketWindow {
                 String seller = offer.seller();
                 if (seller != null && !seller.isBlank()) {
                     UiContainer sellerActions = ui.row().spacing(6)
-                            .width(Math.max(520, window.getBodyWidth() - 28)).height(27);
+                            .width(contentWidth()).height(27);
                     boolean favorite = favoriteSellers.contains(seller);
                     sellerActions.add(ui.button(favorite ? "★ Избран" : "☆ Избранное",
                             () -> toggleFavorite(seller)).width(96).height(24));
@@ -504,6 +572,8 @@ final class MarketWindow {
                     card.add(sellerActions);
                 }
 
+                card.add(ui.button("Копировать объявление", () -> ui.copyToClipboard(offer.rawText()))
+                        .width(Math.min(155, bodyWidth)).height(24));
                 offersList.add(card);
                 offersList.add(ui.spacer(1, 5));
                 shown++;
@@ -512,20 +582,20 @@ final class MarketWindow {
             if (shown == 0) {
                 offersList.add(ui.text(actionFilter == ActionFilter.FAVORITES
                                 ? "Пока нет объявлений от избранных продавцов. Их новые предложения появятся здесь автоматически."
-                                : "Пока нет объявлений в этой категории. Новые предложения появятся автоматически, когда их напишут в чат.",
-                        TextStyle.SECONDARY).maxWidth(Math.max(180, window.getBodyWidth() - 28), true));
+                                : (query.isEmpty() ? "Пока нет объявлений в этой категории. Новые предложения появятся автоматически." : "Ничего не найдено. Сбрось поиск или выбери другую категорию."),
+                        TextStyle.SECONDARY).maxWidth(contentWidth(), true));
             } else if (sortedOffers.size() > shown) {
-                offersList.add(ui.text("Показаны первые " + shown + " из " + sortedOffers.size() + " предложений. Уточни категорию, чтобы сузить список.", TextStyle.SECONDARY)
-                        .maxWidth(Math.max(180, window.getBodyWidth() - 28), true));
+                offersList.add(ui.text("Показаны " + (page * PAGE_SIZE + 1) + "–" + (page * PAGE_SIZE + shown) + " из " + sortedOffers.size() + ". Стрелки над списком переключают страницы.", TextStyle.SECONDARY)
+                        .maxWidth(contentWidth(), true));
             }
         }
 
-        private String topOfferKey() {
-            List<MarketOffer> top = store.latest(1);
-            if (top.isEmpty()) return "";
-            MarketOffer first = top.get(0);
-            return first.timestamp() + "|" + first.rawText();
-        }
+    }
+
+    private static String shortLabel(String label, double width) {
+        int limit = Math.max(3, (int) (width / 7));
+        String plain = label.replaceAll("(?i)§[0-9A-FK-OR]", "");
+        return plain.length() <= limit ? label : plain.substring(0, limit - 1) + "…";
     }
 
     private static String chatMessage(String rawText) {
@@ -538,7 +608,7 @@ final class MarketWindow {
 
     private static String formatOfferPrice(MarketOffer offer) {
         if (offer.category().equals("Игровая валюта")) {
-            Matcher bundle = CURRENCY_LK_BUNDLE.matcher(offer.rawText());
+            Matcher bundle = CURRENCY_LK_BUNDLE.matcher(offer.tradeContext());
             if (bundle.find()) {
                 String stockUnit = isTrillion(bundle.group(2)) ? "T" : "B";
                 String rateUnit = isTrillion(bundle.group(4)) ? "T" : "B";
@@ -546,18 +616,18 @@ final class MarketWindow {
                         + " · " + bundle.group(3).replace(',', '.') + " " + rateUnit
                         + " за " + bundle.group(5).replace(',', '.') + " ЛК";
             }
-            Matcher single = CURRENCY_LK_SINGLE.matcher(offer.rawText());
+            Matcher single = CURRENCY_LK_SINGLE.matcher(offer.tradeContext());
             if (single.find()) {
                 String unit = isTrillion(single.group(2)) ? "T" : "B";
                 return single.group(1).replace(',', '.') + " " + unit
                         + " за " + single.group(3).replace(',', '.') + " ЛК";
             }
-            Matcher rate = CURRENCY_RATE.matcher(offer.rawText());
+            Matcher rate = CURRENCY_RATE.matcher(offer.tradeContext());
             if (rate.find()) {
                 String unit = isTrillion(rate.group(2)) ? "T" : "B";
                 return "курс " + rate.group(1).replace(',', '.') + " " + unit + " к " + rate.group(3).replace(',', '.');
             }
-            Matcher compactLkRate = COMPACT_LK_CURRENCY_RATE.matcher(offer.rawText());
+            Matcher compactLkRate = COMPACT_LK_CURRENCY_RATE.matcher(offer.tradeContext());
             if (compactLkRate.find()) {
                 return "курс " + compactLkRate.group(1).replace(',', '.') + " к "
                         + compactLkRate.group(2).replace(',', '.') + " (ЛК)";
@@ -568,7 +638,7 @@ final class MarketWindow {
             String payment = offer.paymentLabel();
             if ("ЛК".equals(payment)) return formatted + " ЛК";
             if ("Игровая валюта".equals(payment)) return formatted + " игровой валюты";
-            if ("ЛК / игровая валюта".equals(payment)) return formatted + " (ЛК / игровая валюта)";
+            if ("ЛК / игровая валюта".equals(payment)) return "ЛК / игровая валюта — см. сообщение";
             return formatted;
         }
         return "цена не распознана";

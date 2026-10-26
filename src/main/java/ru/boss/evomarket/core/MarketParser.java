@@ -11,7 +11,7 @@ import java.util.regex.Pattern;
 /** Parser for free-form Russian trade messages used in PrisonEvo. */
 public final class MarketParser {
     private static final Pattern INTENT = Pattern.compile(
-            "(?iu)(?<![\\p{L}])(?:(?<buy>ищу|куплю|скупаю|скупает|скупают|покупаю|покупает|покупают|приобрету)|"
+            "(?iu)(?<![\\p{L}])(?:(?<buy>ищу|куплю|скуплю|скупаем|покупаем|скупаю|скупает|скупают|покупаю|покупает|покупают|приобрету)|"
                     + "(?<sell>продам|продаю|продаем|продаём|продает|продаёт|продают|продажа|продать))(?![\\p{L}])"
     );
 
@@ -24,7 +24,7 @@ public final class MarketParser {
     // the price when the amount is introduced as a price, e.g. "за 299 лк" or "по 50 лк".
     private static final Pattern LK_PRICE = Pattern.compile(
             "(?iu)(?<![\\p{L}\\p{N}])(?:за|по(?:\\s+цене)?|цена\\s*:?|стоимость\\s*:?|от)\\s*(?:пак\\s*)?"
-                    + "(\\d+(?:[.,]\\d+)?)\\s*(?:лк|личн\\p{L}*\\s+кабинет\\p{L}*)(?![\\p{L}])"
+                    + "(\\d+(?:[.,]\\d+)?)\\s*(?:лк|lc|личн\\p{L}*\\s+кабинет\\p{L}*)(?![\\p{L}])"
     );
     private static final Pattern SERVER_NAME = Pattern.compile(
             "([A-Za-z0-9_]{3,16})\\s+\\[[^\\]]+\\]\\s+\\[\\d{1,4}]\\s*:"
@@ -55,7 +55,7 @@ public final class MarketParser {
                     + "|купить\\s+что[- ]?то\\s+или\\s+продать"
                     + "|фото\\s+своих\\s+ножек"
                     + "|фотк\\p{L}*\\s+своих\\s+ножек"
-                    + "|кто\\s+(?:за|по)\\s+(?:лк|личн\\p{L}*\\s+кабинет\\p{L}*)\\s+много"
+                    + "|кто\\s+(?:за|по)\\s+(?:лк|lc|личн\\p{L}*\\s+кабинет\\p{L}*)\\s+много"
                     + "|в\\s+целом\\s+все?\\s+посох\\p{L}*"
                     + "|посох\\p{L}*.{0,80}\\bнельзя\\b.{0,50}(?:купить|продать)"
                     + "|(?:продать|купить)\\s+можно[!?]*\\s*$"
@@ -90,15 +90,19 @@ public final class MarketParser {
 
     /** Parses every explicit buy/sell clause in a message, preserving the original message as evidence. */
     public static List<MarketOffer> parseAll(String input, String senderHint, Instant timestamp) {
-        if (input == null || input.isBlank()) return List.of();
+        if (input == null || input.isBlank() || input.length() > 16384) return List.of();
 
-        String text = COLOR_CODE.matcher(input).replaceAll("").replace('\u00a0', ' ')
+        String normalizedText = COLOR_CODE.matcher(input).replaceAll("").replace('\u00a0', ' ').replace('\u202f', ' ').replace('\u2007', ' ')
                 .replaceAll("\\s+", " ").trim();
+        // Join grouped digits only before a known monetary suffix; item quantities stay intact.
+        String text = normalizedText.replaceAll("(?iu)(\\d)[ \\u202f](?=\\d{3}(?:[ ]\\d{3})*(?:[.,]\\d+)?\\s*(?:лк|lc|[тtбbв])(?![\\p{L}]))", "$1");
         String body = extractMessageBody(text);
         if (isNonTradeNoise(text) || isNonTradeNoise(body) || CLAN_SEARCH.matcher(body).find()) return List.of();
         Matcher intents = INTENT.matcher(body);
         List<IntentMark> marks = new ArrayList<>();
         while (intents.find()) {
+            // Ignore explicitly negated trade verbs, but continue with later valid clauses.
+            if (body.substring(0, intents.start()).matches("(?isu).*(?<![\\p{L}\\p{N}])(?:не|кто|как|можно)\\s+$")) continue;
             TradeAction action = intents.group("buy") != null ? TradeAction.BUY : TradeAction.SELL;
             marks.add(new IntentMark(intents.start(), intents.end(), action));
         }
@@ -148,7 +152,7 @@ public final class MarketParser {
                     || MarketCategories.isNonTradableItem(item)) continue;
             String paymentMethod = MarketCategories.paymentMethod(item, segment);
             offers.add(new MarketOffer(safeTimestamp, intent.action, item,
-                    parsedPrice == null ? null : parsedPrice.amount, seller, text, paymentMethod));
+                    parsedPrice == null ? null : parsedPrice.amount, seller, text, paymentMethod, segment));
         }
 
         // Recover reversed additional offers such as "кейсы тож продаю" while ignoring
@@ -164,15 +168,17 @@ public final class MarketParser {
             String finalItem = item;
             boolean duplicate = offers.stream().anyMatch(existing -> existing.action() == action
                     && existing.displayItem().equalsIgnoreCase(MarketCategories.displayItem(finalItem, text))
-                    && existing.price() == null);
+                    );
             if (!duplicate) {
                 int contextEnd = body.length();
                 Matcher nextIntent = INTENT.matcher(body);
                 nextIntent.region(reversed.end(), body.length());
                 if (nextIntent.find()) contextEnd = nextIntent.start();
                 String reverseContext = body.substring(reversed.start(), contextEnd);
-                offers.add(new MarketOffer(safeTimestamp, action, item, null, seller, text,
-                        MarketCategories.paymentMethod(item, reverseContext)));
+                PriceResult reversePrice = findPrice(body.substring(reversed.end(), contextEnd), 0);
+                offers.add(new MarketOffer(safeTimestamp, action, item,
+                        reversePrice == null ? null : reversePrice.amount, seller, text,
+                        MarketCategories.paymentMethod(item, reverseContext), reverseContext));
             }
         }
         return List.copyOf(offers);
@@ -247,7 +253,7 @@ public final class MarketParser {
     private static boolean startsWithCurrencyAmount(String input) {
         String value = input == null ? "" : input.trim();
         value = value.replaceFirst("(?iu)^(?:(?:фастом|фастиком|fastom|fastikom|оптом)\\s+)+", "");
-        value = value.replaceFirst("(?iu)^за\\s+(?:лк|личн\\p{L}*\\s+кабинет\\p{L}*)\\s+", "");
+        value = value.replaceFirst("(?iu)^за\\s+(?:лк|lc|личн\\p{L}*\\s+кабинет\\p{L}*)\\s+", "");
         Matcher compactLkRate = COMPACT_LK_CURRENCY_RATE.matcher(value);
         return CURRENCY_AMOUNT_PREFIX.matcher(value).find()
                 || CURRENCY_RATE.matcher(value).lookingAt()
@@ -257,11 +263,11 @@ public final class MarketParser {
     private static String cleanItem(String input) {
         String value = input.trim();
         value = value.replaceFirst("(?iu)^\\s*(?:(?:фастом|фастиком|fastom|fastikom|оптом)\\s+)+", "");
-        value = value.replaceFirst("(?iu)^\\s*за\\s+(?:лк|личн\\p{L}*\\s+кабинет\\p{L}*)\\s+", "");
+        value = value.replaceFirst("(?iu)^\\s*за\\s+(?:лк|lc|личн\\p{L}*\\s+кабинет\\p{L}*)\\s+", "");
         value = value.replaceAll("(?iu)(?:[,;.!]?\\s*)(?:(?:пишите?|писать)\\s+)?(?:в\\s+)?(?:лс|личку|личные сообщения)\\s*[!.!?]*$", "");
         value = value.replaceAll("(?iu)\\s*/\\s*(?:m|msg|tell|w)\\s+\\S+.*$", "");
         value = value.replaceAll("(?iu)\\s+(?:подробност\\p{L}*|если\\s+ч[её]|больше\\s*[-—]?\\s*больше)\\s*[!.!?]*$", "");
-        value = value.replaceAll("(?iu)\\s+(?:за\\s+(?:лк|личн\\p{L}*\\s+кабинет\\p{L}*)|за|по цене|по|цена|от)\\s*$", "");
+        value = value.replaceAll("(?iu)\\s+(?:за\\s+(?:лк|lc|личн\\p{L}*\\s+кабинет\\p{L}*)|за|по цене|по|цена|от)\\s*$", "");
         value = value.replaceAll("(?iu)\\s+(?:за|по цене)\\s+\\S+\\s*$", "");
         value = value.replaceAll("^[\\s:;,.()\\[\\]{}—–-]+", "");
         value = value.replaceAll("[\\s:;,.!?()\\[\\]{}—–-]+$", "");

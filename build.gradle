@@ -94,3 +94,14 @@ tasks.named('check') {
     dependsOn tasks.named('marketOfferSorterSelfTest')
     dependsOn tasks.named('marketScannerBridgeSelfTest')
 }
+
+['marketAuditSelfTest': 'ru.boss.evomarket.core.MarketAuditSelfTest',
+ 'marketWindowSelfTest': 'ru.boss.evomarket.evoplus.MarketWindowSelfTest'].each { taskName, entry ->
+    tasks.register(taskName, JavaExec) {
+        group = 'verification'
+        dependsOn tasks.named('testClasses')
+        classpath = sourceSets.test.runtimeClasspath
+        mainClass = entry
+    }
+    tasks.named('check') { dependsOn tasks.named(taskName) }
+}

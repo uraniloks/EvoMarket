@@ -5,29 +5,25 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.List;
-import java.util.Map;
 
 /** Small local history. It stores only messages visible in the player's client. */
 public final class MarketStore {
     private static final int MAX_HISTORY = 500;
-    private static final Duration DEDUP_WINDOW = Duration.ofSeconds(3);
 
     private final Path file;
     private final ArrayDeque<MarketOffer> offers = new ArrayDeque<>(); // newest first
-    private final Map<String, Instant> recentlySeen = new HashMap<>();
+    private final Set<String> fingerprints = new HashSet<>();
+    private long revision;
 
     public MarketStore(Path file) {
         this.file = file;
@@ -35,29 +31,35 @@ public final class MarketStore {
     }
 
     public synchronized boolean add(MarketOffer offer) {
+        boolean changed = addInternal(offer);
+        if (changed) save();
+        return changed;
+    }
+
+    public synchronized int addAll(List<MarketOffer> incoming) {
+        int added = 0;
+        for (MarketOffer offer : incoming) if (addInternal(offer)) added++;
+        if (added > 0) save();
+        return added;
+    }
+
+    public synchronized long revision() { return revision; }
+
+    private boolean addInternal(MarketOffer offer) {
         // Never persist non-offers caused by filler after a trade verb (e.g. "если че").
         if (offer == null || MarketCategories.isFillerItem(offer.item())
                 || MarketCategories.isNonItemCategoryLabel(offer.item())) return false;
-        // Suppress repeated reposts of the exact same listing even when they arrive minutes apart.
         String fingerprint = fingerprint(offer);
-        if (offers.stream().anyMatch(existing -> fingerprint(existing).equals(fingerprint))) return false;
-        String dedupeKey = fingerprint;
-        Instant now = offer.timestamp();
-        Instant previous = recentlySeen.get(dedupeKey);
-        if (previous != null && Duration.between(previous, now).abs().compareTo(DEDUP_WINDOW) <= 0) {
-            return false;
-        }
-        recentlySeen.put(dedupeKey, now);
-        recentlySeen.entrySet().removeIf(entry -> Duration.between(entry.getValue(), now).abs().compareTo(Duration.ofMinutes(2)) > 0);
+        if (!fingerprints.add(fingerprint)) return false;
 
         offers.addFirst(offer);
-        while (offers.size() > MAX_HISTORY) offers.removeLast();
-        save();
+        while (offers.size() > MAX_HISTORY) fingerprints.remove(fingerprint(offers.removeLast()));
+        revision++;
         return true;
     }
 
     public synchronized List<MarketOffer> latest(int limit) {
-        List<MarketOffer> result = new ArrayList<>(Math.min(limit, offers.size()));
+        List<MarketOffer> result = new ArrayList<>(Math.max(0, Math.min(limit, offers.size())));
         int count = 0;
         for (MarketOffer offer : offers) {
             if (count++ >= limit) break;
@@ -76,7 +78,8 @@ public final class MarketStore {
 
     public synchronized void clear() {
         offers.clear();
-        recentlySeen.clear();
+        fingerprints.clear();
+        revision++;
         save();
     }
 
@@ -86,7 +89,7 @@ public final class MarketStore {
         try {
             for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
                 String[] parts = line.split("\\t", -1);
-                if (parts.length != 6 && parts.length != 7) continue;
+                if (parts.length != 6 && parts.length != 7 && parts.length != 8) continue;
                 try {
                     Instant time = Instant.parse(decode(parts[0]));
                     TradeAction action = TradeAction.valueOf(decode(parts[1]));
@@ -97,11 +100,12 @@ public final class MarketStore {
                     BigDecimal price = priceText.isBlank() ? null : new BigDecimal(priceText);
                     String seller = decode(parts[4]);
                     String raw = decode(parts[5]);
-                    String payment = parts.length >= 7 ? decode(parts[6]) : MarketCategories.paymentMethod(item, item);
+                    String payment = parts.length >= 7 ? decode(parts[6]) : MarketCategories.paymentMethod(item, raw);
                     if (MarketParser.isNonTradeNoise(raw)) continue;
-                    MarketOffer offer = new MarketOffer(time, action, item, price, seller, raw, payment);
+                    MarketOffer offer = new MarketOffer(time, action, item, price, seller, raw, payment, parts.length == 8 ? decode(parts[7]) : raw);
                     if (!loadedFingerprints.add(fingerprint(offer))) continue;
                     offers.addLast(offer);
+                    fingerprints.add(fingerprint(offer));
                 } catch (RuntimeException ignored) {
                     // Ignore a damaged line; keep the rest of the history.
                 }
@@ -114,7 +118,7 @@ public final class MarketStore {
 
     private void save() {
         try {
-            Files.createDirectories(file.getParent());
+            Files.createDirectories(file.toAbsolutePath().getParent());
             List<String> lines = new ArrayList<>(offers.size());
             for (MarketOffer offer : offers) {
                 lines.add(encode(offer.timestamp().toString()) + "\t"
@@ -123,10 +127,10 @@ public final class MarketStore {
                         + encode(offer.price() == null ? "" : offer.price().toPlainString()) + "\t"
                         + encode(offer.seller()) + "\t"
                         + encode(offer.rawText()) + "\t"
-                        + encode(offer.paymentLabel()));
+                        + encode(offer.paymentLabel()) + "\t"
+                        + encode(offer.tradeContext()));
             }
-            Files.write(file, lines, StandardCharsets.UTF_8,
-                    StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+            AtomicFiles.writeLines(file, lines);
         } catch (IOException exception) {
             System.err.println("[EvoMarket] Не удалось сохранить историю: " + exception.getMessage());
         }
